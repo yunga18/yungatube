@@ -43,9 +43,12 @@ import java.util.concurrent.Executors;
  */
 public final class PlayerActivity extends Activity {
     private static final class StreamOption {
-        final String label,url,type;
+        final String label,url,type,audioUrl;
         StreamOption(String label,String url,String type){
-            this.label=label;this.url=url;this.type=type;
+            this(label,url,type,null);
+        }
+        StreamOption(String label,String url,String type,String audioUrl){
+            this.label=label;this.url=url;this.type=type;this.audioUrl=audioUrl;
         }
     }
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
@@ -226,7 +229,9 @@ public final class PlayerActivity extends Activity {
                 controller=request.get();
                 controller.addListener(listener);
                 playerView.setPlayer(controller);
-                if(ready)startSourceWhenReady();
+                if(ready && (controller.getCurrentMediaItem()==null ||
+                    !id.equals(controller.getCurrentMediaItem().mediaId)))
+                    startSourceWhenReady();
             }catch(Exception e){status.setText("Error del reproductor: "+e.getMessage());}
         },command->runOnUiThread(command));
     }
@@ -272,6 +277,23 @@ public final class PlayerActivity extends Activity {
                             type.startsWith("audio/mp4")?"audio/mp4":type));
                         break;
                     }
+                }
+                String sound=null;
+                if(audios!=null)for(int i=0;i<audios.length();i++){
+                    JSONObject a=audios.optJSONObject(i);
+                    if(a!=null && "audio/mp4".equals(a.optString("type")) &&
+                       a.optString("url","").startsWith("https://")){
+                        sound=a.optString("url");break;
+                    }
+                }
+                JSONArray separate=info.optJSONArray("videoOnlyStreams");
+                if(sound!=null && separate!=null)for(int i=0;i<separate.length();i++){
+                    JSONObject v=separate.optJSONObject(i);
+                    if(v==null || !"video/mp4".equals(v.optString("type")))continue;
+                    String url=v.optString("url","");
+                    if(!url.startsWith("https://"))continue;
+                    String label=v.optString("resolution","HD");
+                    fresh.add(new StreamOption(label+" HD",url,"video/mp4",sound));
                 }
                 String hls=info.optString("hlsUrl","");
                 if(hls.startsWith("https://"))
@@ -325,7 +347,14 @@ public final class PlayerActivity extends Activity {
 
     private void playOption(StreamOption stream,long seek){
         qualityButton.setText("⚙ "+stream.label);
-        playUri(Uri.parse(stream.url),stream.type,seek);
+        if(stream.audioUrl!=null){
+            status.setText("Preparando audio y video HD...");
+            status.setVisibility(View.VISIBLE);
+            if(!PlaybackService.playMerged(id,Uri.parse(stream.url),
+                    Uri.parse(stream.audioUrl),video.optString("title","Video"),
+                    video.optString("author",""),seek))
+                playUri(Uri.parse(stream.url),stream.type,seek);
+        }else playUri(Uri.parse(stream.url),stream.type,seek);
     }
 
     private void playUri(Uri uri,String mime,long seek){
@@ -336,7 +365,7 @@ public final class PlayerActivity extends Activity {
             .setTitle(video.optString("title","Video"))
             .setArtist(video.optString("author",""))
             .build();
-        MediaItem.Builder builder=new MediaItem.Builder().setUri(uri).setMediaMetadata(metadata);
+        MediaItem.Builder builder=new MediaItem.Builder().setUri(uri).setMediaId(id).setMediaMetadata(metadata);
         if(mime!=null && !mime.isEmpty())builder.setMimeType(mime);
         controller.setMediaItem(builder.build(),Math.max(0,seek));
         controller.prepare();
