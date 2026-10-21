@@ -1,37 +1,34 @@
 # YungaTube 🎬
 
-Cliente Android **independiente y sin inicio de sesión en Google**, desarrollado en Java.
+Aplicación Android independiente, gratuita y sin inicio de sesión de Google.
 
-## Funciones de esta primera versión
+## ¿Qué cambió en v0.2?
 
-- Inicio con videos en tendencia, búsqueda y reproducción mediante instancias públicas de [Invidious](https://invidious.io/).
-- Favoritos, historial y canales seguidos **guardados en el teléfono**, sin cuentas ni servidores propios.
-- Pantalla de reproducción con controles nativos, cambio de orientación, sugerencias y enlaces para compartir.
-- Configuración para elegir una instancia pública compatible o introducir una URL HTTPS propia.
-- Diseño oscuro en español y acceso a las listas desde la barra inferior.
-- Compilación reproducible en GitHub Actions, que genera un archivo APK como artefacto descargable.
+La primera versión dependía de cuatro instancias públicas de Invidious y podía mostrar *«No hay servidores disponibles»*. **YungaTube 0.2 cambia a conexión directa usando [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor)**, sin depender de servidores públicos de Invidious para obtener búsquedas, tendencias, canales y videos.
 
-## Límites y privacidad
+- **Fuente predeterminada:** extracción local de información de YouTube mediante NewPipeExtractor v0.26.5.
+- **Alternativa:** servidores Invidious en Configuración si el modo directo falla.
+- **Sin cuenta:** no se solicita ni se almacena ninguna contraseña de Google.
+- **Biblioteca local:** favoritos, historial y canales seguidos permanecen en el teléfono.
+- **Reproductor:** reproduce formatos progresivos MP4 cuando YouTube los proporciona. Algunos videos pueden no funcionar, especialmente transmisiones en directo o cuando solo existen formatos DASH separados.
+- **Privacidad:** la conexión directa envía solicitudes a servidores de YouTube, con los datos de red habituales; el modo Invidious utiliza servidores operados por terceros.
+- **Limitaciones:** el acceso a YouTube es susceptible a cambios técnicos, restricciones regionales y bloqueos, de modo que una compilación exitosa no demuestra que los videos funcionen en todos los teléfonos.
 
-Esta aplicación **no es YouTube oficial**, no usa OAuth de Google, no accede a suscripciones de tu cuenta de YouTube ni solicita contraseñas. Las instancias de Invidious son operadas por terceros y pueden registrar IP y solicitudes según sus políticas. La disponibilidad de búsquedas y reproducción depende de estas instancias y de los cambios de YouTube; **no se garantiza la ausencia de anuncios, funcionamiento permanente ni compatibilidad con todos los videos**.
+### Descargar e instalar la APK
 
-El video se reproduce por las URLs proporcionadas por Invidious; si una instancia está bloqueada, cambia de servidor en ⚙️. La primera versión no incorpora descarga, Picture-in-Picture ni reproducción en segundo plano.
+1. Abre [Actions](https://github.com/yunga18/yungatube/actions/workflows/android.yml).
+2. Elige la **ejecución verde más reciente**.
+3. En **Artifacts**, descarga `YungaTube-debug-APK`.
+4. Descomprime el ZIP e instala `app-debug.apk` en Android. No hace falta Android Studio.
 
-## Compilar e instalar APK (gratis)
+**Si tenías la versión anterior instalada:** esta APK debug puede tener una clave de firma diferente entre ejecuciones de GitHub Actions. Si Android indica *«No se instaló la aplicación»*, primero anota tus favoritos y canales seguidos y desinstala la versión anterior. Desinstalar eliminará los datos locales, ya que esta versión todavía no incluye exportación.
 
-1. Abre **Actions > Build Android APK** en este repositorio.
-2. Selecciona **Run workflow** (o espera la ejecución automática después de un push).
-3. Cuando termine en verde, abre la ejecución y descarga el artefacto `YungaTube-debug-APK`.
-4. Extrae el ZIP, pasa `app-debug.apk` a tu Android e instálalo. Autoriza la instalación de esa fuente cuando Android lo solicite.
+### Compilar en Android Studio
 
-También puedes abrir el repositorio con Android Studio, seleccionar `app` y elegir **Build > Build APK(s)**. Requiere Android SDK 35, JDK 17 y Gradle compatible (el workflow configura este entorno).
+JDK 17, Android SDK 35, Android Gradle Plugin 8.9.2, Gradle 8.11.1. Usa `gradle :app:assembleDebug`. El workflow de GitHub Actions incluye la configuración gratuita.
 
-> **Advertencia:** Una APK debug está firmada con una clave de depuración, por eso es para pruebas personales y no para publicar en Play Store. No descargues APK modificadas de sitios desconocidos.
+## Licencias
 
-## Base técnica
+El código propio de YungaTube se ofrece bajo **GPL-3.0-or-later**, debido a la integración de NewPipeExtractor. El código y la documentación de NewPipeExtractor están disponibles en [TeamNewPipe/NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor), también bajo GPL-3.0-or-later. Consulta el texto de la licencia en [GNU GPLv3](https://www.gnu.org/licenses/gpl-3.0.html). YouTube es un servicio de Google y no está afiliado a este proyecto.
 
-Android SDK 35 · Java 17 · Android Gradle Plugin 8.9.2 · Gradle 8.11.1 · Invidious REST API.
-
-Licencia del código propio: MIT. Este proyecto no usa ni redistribuye código de las aplicaciones oficiales de Google/YouTube.
-
-Fuente y documentación: [Invidious API](https://docs.invidious.io/api/) | [Instancias oficiales](https://docs.invidious.io/instances/).
+No se redistribuye código de la APK oficial de YouTube.
