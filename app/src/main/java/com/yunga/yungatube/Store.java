@@ -98,4 +98,33 @@ final class Store {
         save(c,"channels",out);
         return !found;
     }
+    static boolean inWatchLater(Context c,String id) {
+        JSONArray videos=list(c,"watch_later");
+        for(int i=0;i<videos.length();i++) {
+            JSONObject one=videos.optJSONObject(i);
+            if(one!=null && id.equals(one.optString("videoId")))return true;
+        }
+        return false;
+    }
+
+    static boolean toggleWatchLater(Context c,JSONObject video) {
+        String id=Ui.id(video);
+        if(id.isEmpty())return false;
+        JSONArray before=list(c,"watch_later"),after=new JSONArray();
+        boolean found=false;
+        for(int i=0;i<before.length();i++){
+            JSONObject one=before.optJSONObject(i);
+            if(one==null)continue;
+            if(id.equals(one.optString("videoId")))found=true;
+            else after.put(one);
+        }
+        if(!found)after.put(small(video));
+        save(c,"watch_later",after);
+        return !found;
+    }
+
+    static void clearHistory(Context c) {
+        save(c,"history",new JSONArray());
+    }
+
 }
