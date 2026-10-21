@@ -1,34 +1,49 @@
 # YungaTube 🎬
 
-Aplicación Android independiente, gratuita y sin inicio de sesión de Google.
+**Cliente Android independiente**, con interfaz oscura inspirada en la organización de YouTube, sin pedir inicio de sesión ni contraseña de Google. Código abierto bajo la licencia [GPL-3.0-or-later](LICENSE).
 
-## ¿Qué cambió en v0.2?
+## YungaTube v0.3.0
 
-La primera versión dependía de cuatro instancias públicas de Invidious y podía mostrar *«No hay servidores disponibles»*. **YungaTube 0.2 cambia a conexión directa usando [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor)**, sin depender de servidores públicos de Invidious para obtener búsquedas, tendencias, canales y videos.
+### Interfaz y navegación
+- Inicio con **miniaturas grandes**, canales, duración y categorías temáticas.
+- Búsqueda de videos, pestaña Shorts (resultados cortos), canales seguidos y videos relacionados.
+- Biblioteca local: **Favoritos**, **Ver después**, **Historial** y **Descargas**.
+- Menú de cada video para abrirlo, guardarlo o añadirlo a Ver después.
 
-- **Fuente predeterminada:** extracción local de información de YouTube mediante NewPipeExtractor v0.26.5.
-- **Alternativa:** servidores Invidious en Configuración si el modo directo falla.
-- **Sin cuenta:** no se solicita ni se almacena ninguna contraseña de Google.
-- **Biblioteca local:** favoritos, historial y canales seguidos permanecen en el teléfono.
-- **Reproductor:** reproduce formatos progresivos MP4 cuando YouTube los proporciona. Algunos videos pueden no funcionar, especialmente transmisiones en directo o cuando solo existen formatos DASH separados.
-- **Privacidad:** la conexión directa envía solicitudes a servidores de YouTube, con los datos de red habituales; el modo Invidious utiliza servidores operados por terceros.
-- **Limitaciones:** el acceso a YouTube es susceptible a cambios técnicos, restricciones regionales y bloqueos, de modo que una compilación exitosa no demuestra que los videos funcionen en todos los teléfonos.
+### Funciones parecidas a YouTube Premium, sin cuenta
+| Función | Estado |
+|---|---|
+| Interfaz sin espacios publicitarios integrados | Sí; no garantiza eliminar toda publicidad que pueda incluir un flujo externo |
+| Reproducción en segundo plano y pantalla bloqueada | Implementada con Android Media3 / MediaSessionService |
+| Controles en notificación del sistema | MediaSessionService; requieren compatibilidad/permisos del dispositivo |
+| Pantalla flotante (Picture-in-Picture) | Android 8+; también configurable al salir de la app |
+| Cambiar velocidad de reproducción | 0.5× a 2× |
+| Calidad de video | Selectable para las fuentes disponibles. Videos HD pueden necesitar flujos separados de audio y video |
+| Reproducción de audio sin imagen | Disponible cuando el extractor ofrece un enlace de audio |
+| Descargas MP4 compatibles para ver sin conexión | Sí, mediante DownloadManager; solo fuentes progresivas con audio y video |
+| Historial, seguir canales, favoritos, Ver después | Guardados localmente en el teléfono |
+| YouTube Music Premium, bitrate exclusivo, sincronización Google, contenido DRM y descargas protegidas | **No incluidos** |
 
-### Descargar e instalar la APK
+### Importante
+No es una APK de YouTube modificada ni un producto afiliado a YouTube. Es una aplicación independiente que utiliza [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor) para consultar información pública de YouTube. Los servidores de YouTube y de Invidious pueden rechazar solicitudes o cambiar los formatos. **Las funciones pueden no operar con todos los videos**; una compilación exitosa solo confirma que la APK se generó, no que todas las funciones funcionan en un dispositivo real. Respeta los derechos de los creadores al guardar contenido.
 
-1. Abre [Actions](https://github.com/yunga18/yungatube/actions/workflows/android.yml).
-2. Elige la **ejecución verde más reciente**.
-3. En **Artifacts**, descarga `YungaTube-debug-APK`.
-4. Descomprime el ZIP e instala `app-debug.apk` en Android. No hace falta Android Studio.
+Las descargas se guardan en el directorio de archivos privado de la aplicación, por lo que se eliminan al desinstalarla. No hay sincronización en la nube, ni uso de contraseñas de Google.
 
-**Si tenías la versión anterior instalada:** esta APK debug puede tener una clave de firma diferente entre ejecuciones de GitHub Actions. Si Android indica *«No se instaló la aplicación»*, primero anota tus favoritos y canales seguidos y desinstala la versión anterior. Desinstalar eliminará los datos locales, ya que esta versión todavía no incluye exportación.
+## Descarga e instalación gratis
 
-### Compilar en Android Studio
+1. Entra en [GitHub Actions de YungaTube](https://github.com/yunga18/yungatube/actions/workflows/android.yml).
+2. Abre el **workflow verde más reciente**.
+3. Desplázate hasta **Artifacts**, descarga `YungaTube-debug-APK` y extrae el ZIP.
+4. Instala `app-debug.apk` en Android. No requiere root.
 
-JDK 17, Android SDK 35, Android Gradle Plugin 8.9.2, Gradle 8.11.1. Usa `gradle :app:assembleDebug`. El workflow de GitHub Actions incluye la configuración gratuita.
+> **Firmas de pruebas:** GitHub Actions firma cada APK con una clave de depuración que puede cambiar entre ejecuciones. Si aparece un conflicto de firma, es posible que necesites desinstalar la versión anterior; **desinstalar borra favoritos, historial, descargas y listas locales**. El proyecto todavía necesita un proceso de firma estable para actualizaciones sin pérdida de datos.
 
-## Licencias
+## Desarrollar
 
-El código propio de YungaTube se ofrece bajo **GPL-3.0-or-later**, debido a la integración de NewPipeExtractor. El código y la documentación de NewPipeExtractor están disponibles en [TeamNewPipe/NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor), también bajo GPL-3.0-or-later. Consulta el texto de la licencia en [GNU GPLv3](https://www.gnu.org/licenses/gpl-3.0.html). YouTube es un servicio de Google y no está afiliado a este proyecto.
+Java 17, Android SDK 35, AGP 8.9.2, Gradle 8.11.1, Media3 1.9.4 y NewPipeExtractor v0.26.5.
 
-No se redistribuye código de la APK oficial de YouTube.
+La ejecución `Build Android APK` de GitHub Actions compila con `gradle :app:assembleDebug` y publica la APK como artefacto. También puedes abrir el proyecto en Android Studio.
+
+## Créditos y licencia
+
+Este repositorio contiene código propio de YungaTube y depende de NewPipeExtractor, licenciado bajo GPL-3.0-or-later. El código propio se publica bajo la misma familia de licencias. Consulta [LICENSE](LICENSE) y el proyecto original [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor).
