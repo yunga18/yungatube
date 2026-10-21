@@ -6,7 +6,7 @@ import org.json.JSONObject;
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.StreamingService;
 import org.schabi.newpipe.extractor.InfoItem;
-import org.schabi.newpipe.extractor.Localization;
+import org.schabi.newpipe.extractor.localization.Localization;
 import org.schabi.newpipe.extractor.localization.ContentCountry;
 import org.schabi.newpipe.extractor.kiosk.KioskExtractor;
 import org.schabi.newpipe.extractor.search.SearchExtractor;
