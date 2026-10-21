@@ -52,10 +52,19 @@ final class Api {
     static void setInstance(Context c, String instance) {
         String good = validate(instance);
         if (good == null) throw new IllegalArgumentException("Introduce una URL HTTPS válida");
-        c.getSharedPreferences(PREFS,0).edit().putString("instance",good).apply();
+        c.getSharedPreferences(PREFS,0).edit().putString("instance",good).putString("source","invidious").apply();
+    }
+
+    static boolean useDirect(Context c) {
+        return "direct".equals(c.getSharedPreferences(PREFS,0).getString("source","direct"));
+    }
+
+    static void selectDirect(Context c) {
+        c.getSharedPreferences(PREFS,0).edit().putString("source","direct").apply();
     }
 
     static Result get(Context c, String path) throws Exception {
+        if (useDirect(c)) return DirectExtractor.get(path);
         if (!path.startsWith("/api/v1/")) throw new IllegalArgumentException("Ruta de API no válida");
         LinkedHashSet<String> candidates = new LinkedHashSet<>();
         candidates.add(configured(c));

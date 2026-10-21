@@ -346,16 +346,19 @@ public final class MainActivity extends Activity {
 
     private void settings() {
         String[] options={
-            "Nadeko (Chile)", "NerdVPN (Canadá)", "ChocolateMoo (EE. UU.)",
+            "Conexión directa (recomendada)", "Nadeko (Chile)", "NerdVPN (Canadá)", "ChocolateMoo (EE. UU.)",
             "Tiekoetter (Alemania)", "Servidor HTTPS personalizado..."
         };
         new AlertDialog.Builder(this)
-            .setTitle("Servidor de videos")
-            .setMessage("Actual: "+Api.configured(this)+
+            .setTitle("Fuente de videos")
+            .setMessage("Modo: "+(Api.useDirect(this) ? "Conexión directa" : Api.configured(this))+
                 "\n\nLos servidores públicos pueden dejar de funcionar. No necesitas una cuenta.")
             .setItems(options,(dialog,which)->{
-                if(which < Api.INSTANCES.length) {
-                    Api.setInstance(this,Api.INSTANCES[which]);
+                if(which == 0) {
+                    Api.selectDirect(this);
+                    refresh();
+                } else if(which <= Api.INSTANCES.length) {
+                    Api.setInstance(this,Api.INSTANCES[which-1]);
                     refresh();
                 } else customServer();
             })
@@ -391,7 +394,7 @@ public final class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Privacidad y limitaciones")
             .setMessage("YungaTube no solicita usuario o contraseña de Google. " +
                 "Los favoritos, canales seguidos e historial se guardan localmente. " +
-                "Las búsquedas y videos se consultan a servidores públicos de Invidious y " +
+                "En modo directo se consulta YouTube sin iniciar sesión; con Invidious se usan servidores de terceros. Las búsquedas, reproducción y miniaturas pueden conectar a YouTube. " +
                 "las miniaturas se descargan de i.ytimg.com. Los administradores de esos " +
                 "servicios pueden ver tu dirección IP. Ni YouTube ni Invidious garantizan " +
                 "la disponibilidad o ausencia de publicidad en todas las reproducciones.")

@@ -184,13 +184,13 @@ public final class PlayerActivity extends Activity {
                 ArrayList<String> found=new ArrayList<>();
                 collectStreams(info,proxied.host,found);
                 // A last-resort 360p HTTP redirect via the same instance.
-                found.add(proxied.host+"/latest_version?id="+id+"&itag=18&local=true");
+                if(!"direct".equals(proxied.host)) found.add(proxied.host+"/latest_version?id="+id+"&itag=18&local=true");
                 // Fetch direct playback links as fallback if this instance blocks proxying.
                 try {
                     Api.Result direct=Api.get(this,"/api/v1/videos/"+id+"?region=EC&local=false");
                     collectStreams(direct.object(),direct.host,found);
                 } catch(Exception ignored) {}
-                found.add(proxied.host+"/latest_version?id="+id+"&itag=18");
+                if(!"direct".equals(proxied.host)) found.add(proxied.host+"/latest_version?id="+id+"&itag=18");
                 handler.post(()->{
                     if(isFinishing() || isDestroyed()) return;
                     item=info;
