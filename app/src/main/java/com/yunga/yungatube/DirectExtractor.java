@@ -13,6 +13,7 @@ import org.schabi.newpipe.extractor.search.SearchExtractor;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
 import org.schabi.newpipe.extractor.stream.StreamInfoItem;
 import org.schabi.newpipe.extractor.stream.VideoStream;
+import org.schabi.newpipe.extractor.stream.AudioStream;
 import org.schabi.newpipe.extractor.channel.ChannelInfo;
 import org.schabi.newpipe.extractor.channel.tabs.ChannelTabInfo;
 import org.schabi.newpipe.extractor.linkhandler.ListLinkHandler;
@@ -138,6 +139,38 @@ final class DirectExtractor {
             }
         }
         out.put("formatStreams",streams);
+        JSONArray videoOnly=new JSONArray();
+        if(info.getVideoOnlyStreams()!=null) {
+            for(VideoStream stream:info.getVideoOnlyStreams()) {
+                if(!stream.isUrl()) continue;
+                String url=stream.getContent();
+                if(url==null || !url.startsWith("https://")) continue;
+                JSONObject s=new JSONObject();
+                s.put("itag",stream.getItag());
+                s.put("url",url);
+                s.put("resolution",stream.getResolution());
+                String ext=stream.getFormat()==null?"":stream.getFormat().getSuffix();
+                s.put("type","mp4".equalsIgnoreCase(ext)?"video/mp4":"video/"+ext);
+                videoOnly.put(s);
+            }
+        }
+        out.put("videoOnlyStreams",videoOnly);
+        JSONArray audioStreams=new JSONArray();
+        if(info.getAudioStreams()!=null) {
+            for(AudioStream stream:info.getAudioStreams()) {
+                if(!stream.isUrl()) continue;
+                String url=stream.getContent();
+                if(url==null || !url.startsWith("https://")) continue;
+                JSONObject s=new JSONObject();
+                s.put("url",url);
+                String ext=stream.getFormat()==null?"":stream.getFormat().getSuffix();
+                s.put("type","m4a".equalsIgnoreCase(ext)?"audio/mp4":"audio/"+ext);
+                s.put("bitrate",stream.getAverageBitrate());
+                audioStreams.put(s);
+            }
+        }
+        out.put("audioStreams",audioStreams);
+
         out.put("hlsUrl",info.getHlsUrl()==null?"":info.getHlsUrl());
         return out;
     }
