@@ -421,9 +421,9 @@ public final class PlayerActivity extends Activity {
             texts.addView(a);
             row.addView(texts,new LinearLayout.LayoutParams(0,-2,1));
             row.setOnClickListener(v->{
-                Intent i=new Intent(this,PlayerActivity.class);
-                i.putExtra("video",next.toString());
-                startActivity(i);
+                Intent detailIntent=new Intent(this,PlayerActivity.class);
+                detailIntent.putExtra("video",next.toString());
+                startActivity(detailIntent);
             });
             suggestions.addView(row,p);
         }

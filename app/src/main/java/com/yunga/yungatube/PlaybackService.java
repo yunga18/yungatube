@@ -1,6 +1,5 @@
 package com.yunga.yungatube;
 
-import androidx.annotation.Nullable;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
@@ -16,7 +15,7 @@ public final class PlaybackService extends MediaSessionService {
         session=new MediaSession.Builder(this,player).build();
     }
 
-    @Nullable @Override public MediaSession onGetSession(MediaSession.ControllerInfo controllerInfo) {
+    @Override public MediaSession onGetSession(MediaSession.ControllerInfo controllerInfo) {
         return session;
     }
 
