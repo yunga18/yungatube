@@ -418,14 +418,13 @@ public final class PlayerActivity extends Activity {
         };
         final int[] minutes={5,10,15,30,45,60};
         long remaining=PlaybackService.sleepTimerRemainingMillis();
-        String message=remaining>0 ?
-            "La reproducción se pausará automáticamente. Quedan "+
-                ((remaining+59_999)/60_000)+" min. Puedes sustituir o cancelar el tiempo." :
-            "El video se pausará automáticamente al terminar el tiempo, "+
-                "aunque la pantalla esté apagada.";
+        // AlertDialog shows either the message OR the items, not both.
+        // Keep the countdown in the title so the selectable times remain visible.
+        String heading=remaining>0 ?
+            "☾ Temporizador · quedan "+((remaining+59_999)/60_000)+" min" :
+            "☾ Temporizador de descanso";
         new AlertDialog.Builder(this)
-            .setTitle("☾ Temporizador de descanso")
-            .setMessage(message)
+            .setTitle(heading)
             .setItems(options,(dialog,choice)->{
                 if(choice<minutes.length)activateSleepTimer(minutes[choice]);
                 else if(choice==6)customSleepTimer();

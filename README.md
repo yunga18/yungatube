@@ -2,13 +2,16 @@
 
 **Cliente Android independiente**, con interfaz oscura inspirada en la organización de YouTube, sin pedir inicio de sesión ni contraseña de Google. Código abierto bajo la licencia [GPL-3.0-or-later](LICENSE).
 
-## YungaTube v0.3.1
+## YungaTube v0.3.2
 
 ### Interfaz y navegación
 - Inicio con **miniaturas grandes**, canales, duración y categorías temáticas.
 - Búsqueda de videos, pestaña Shorts (resultados cortos), canales seguidos y videos relacionados.
 - Biblioteca local: **Favoritos**, **Ver después**, **Historial** y **Descargas**.
 - Menú de cada video para abrirlo, guardarlo o añadirlo a Ver después.
+
+### Corrección v0.3.2
+Se corrigió el cuadro del temporizador: Android daba prioridad a un mensaje informativo en lugar de mostrar la lista de tiempos. Ahora las opciones son seleccionables y el tiempo restante se muestra en el título.
 
 ### Temporizador de descanso
 1. Reproduce un video y toca **☾ Temporizador** debajo de los controles.
