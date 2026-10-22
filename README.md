@@ -8,7 +8,7 @@ Aplicación Android independiente, gratuita y sin cuenta de Google. El código e
 - Los mismos controles aparecen en una **cuadrícula de dos columnas** debajo del título; el temporizador ocupa una fila completa.
 - Pantalla de inicio y reproductor muestran **0.3.4** de forma visible para que no confundas una instalación anterior con la nueva.
 - Ajustes → «Información de versión y funciones» muestra el identificador de paquete instalado.
-- La APK de prueba sigue siendo una **aplicación separada** (`com.yunga.yungatube.prueba`) y no sustituye la app anterior ni conserva su biblioteca automáticamente. GitHub Actions usa una firma debug que puede cambiar en cada compilación.
+- La APK 0.3.4 de prueba usa **un identificador exclusivo de esta revisión**, evitando conflictos de firma con tus instalaciones anteriores. La versión 0.3.4 sigue siendo una **aplicación separada** (`com.yunga.yungatube.revision34`) y no sustituye la app anterior ni conserva su biblioteca automáticamente. GitHub Actions usa una firma debug que puede cambiar en cada compilación.
 
 ## Solución a «El paquete no es válido»
 
@@ -16,7 +16,7 @@ Las versiones iniciales eran APK de depuración generadas por GitHub Actions. Ca
 
 ### Lo que corregimos
 
-- APK de prueba: ID `com.yunga.yungatube.prueba`, etiquetada **YungaTube Prueba**. Se genera siempre y se instala sin reemplazar ninguna de las antiguas.
+- APK de prueba: ID `com.yunga.yungatube.revision34`, etiquetada **YungaTube Prueba**. Se genera siempre y se instala sin reemplazar ninguna de las antiguas.
 - APK de uso diario: ID `com.yunga.yungatube.estable`, etiquetada **YungaTube**. Se firma con un **certificado permanente** configurado mediante un secreto privado en GitHub.
 - La primera instalación estable aparece en paralelo a las versiones antiguas, sin borrarlas. Todas las APK **estables siguientes** usarán la misma clave, por lo que podrás actualizarlas normalmente.
 - El repositorio público NO contiene el archivo JKS privado ni su contraseña.

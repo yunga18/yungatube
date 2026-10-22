@@ -52,8 +52,8 @@ android {
         // Debug uses an EPHEMERAL key on each GitHub runner. It is for
         // testing only and intentionally installs as a separate app.
         debug {
-            applicationIdSuffix '.prueba'
-            manifestPlaceholders = [appLabel: 'YungaTube Prueba']
+            applicationIdSuffix '.revision34'
+            manifestPlaceholders = [appLabel: 'YT 0.3.4 Prueba']
         }
         // Stable identity and certificate are both required for updates.
         // Distinct package ID means the OLD app is never removed.
