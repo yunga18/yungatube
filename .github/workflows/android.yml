@@ -59,6 +59,25 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
+      # Regression test of the release signing pipeline using a disposable key.
+      # The disposable release is NOT uploaded or distributed to users.
+      - name: Probar compilación release con firma temporal (no distribuir)
+        if: steps.signing.outputs.ready == 'no'
+        shell: bash
+        run: |
+          export TEST_PASS="$(openssl rand -hex 24)"
+          keytool -genkeypair -noprompt -storetype PKCS12 \
+            -keystore "$RUNNER_TEMP/disposable-signing.jks" \
+            -alias yungatube -keyalg RSA -keysize 2048 -validity 7 \
+            -dname "CN=YungaTube Release Signing CI Test" \
+            -storepass "$TEST_PASS" -keypass "$TEST_PASS" >/dev/null
+          export YUNGATUBE_SIGNING_BUNDLE="$(python3 -c 'import os,json,base64,pathlib;print(json.dumps({"keystore_base64":base64.b64encode(pathlib.Path(os.environ["RUNNER_TEMP"]+"/disposable-signing.jks").read_bytes()).decode(),"password":os.environ["TEST_PASS"],"alias":"yungatube"}))')"
+          gradle --no-daemon :app:assembleRelease
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release.apk | grep '^package:'
+          rm -f "$RUNNER_TEMP/disposable-signing.jks" "$RUNNER_TEMP/yungatube-stable-signing.jks"
+          echo "::notice::Release signing test passed. The test APK will NOT be published."
+
       - name: Compilar APK estable firmada
         if: steps.signing.outputs.ready == 'yes'
         env:
