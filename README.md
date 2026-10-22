@@ -2,13 +2,21 @@
 
 **Cliente Android independiente**, con interfaz oscura inspirada en la organización de YouTube, sin pedir inicio de sesión ni contraseña de Google. Código abierto bajo la licencia [GPL-3.0-or-later](LICENSE).
 
-## YungaTube v0.3.0
+## YungaTube v0.3.1
 
 ### Interfaz y navegación
 - Inicio con **miniaturas grandes**, canales, duración y categorías temáticas.
 - Búsqueda de videos, pestaña Shorts (resultados cortos), canales seguidos y videos relacionados.
 - Biblioteca local: **Favoritos**, **Ver después**, **Historial** y **Descargas**.
 - Menú de cada video para abrirlo, guardarlo o añadirlo a Ver después.
+
+### Temporizador de descanso
+1. Reproduce un video y toca **☾ Temporizador** debajo de los controles.
+2. Elige 5, 10, 15, 30, 45 o 60 minutos; también puedes introducir un tiempo de 1 a 240 minutos.
+3. En la pantalla de reproducción se muestra el tiempo restante. Al llegar a cero, YungaTube **pausa**, pero no cierra, el reproductor.
+4. Puedes sustituir el tiempo o tocar **Desactivar temporizador**. Si el servicio sigue activo, el temporizador también funciona con la pantalla apagada, en segundo plano o con la ventana flotante.
+
+**Alcance:** el tiempo corre desde que lo activas (no depende de la duración del video ni se reinicia al cambiarlo). Es un temporizador de sesión: si Android cierra el proceso o reinicias el teléfono, se pierde la programación.
 
 ### Funciones parecidas a YouTube Premium, sin cuenta
 | Función | Estado |
@@ -17,7 +25,7 @@
 | Reproducción en segundo plano y pantalla bloqueada | Implementada con Android Media3 / MediaSessionService |
 | Controles en notificación del sistema | MediaSessionService; requieren compatibilidad/permisos del dispositivo |
 | Pantalla flotante (Picture-in-Picture) | Android 8+; también configurable al salir de la app |
-| Cambiar velocidad de reproducción | 0.5× a 2× |
+| Temporizador para pausar automáticamente | Sí, 5–60 min o personalizado hasta 240 min, en la sesión de reproducción |\n| Cambiar velocidad de reproducción | 0.5× a 2× |
 | Calidad de video | Selectable para las fuentes disponibles. Videos HD pueden necesitar flujos separados de audio y video |
 | Reproducción de audio sin imagen | Disponible cuando el extractor ofrece un enlace de audio |
 | Descargas MP4 compatibles para ver sin conexión | Sí, mediante DownloadManager; solo fuentes progresivas con audio y video |

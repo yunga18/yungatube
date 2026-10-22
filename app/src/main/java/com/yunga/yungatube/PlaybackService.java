@@ -8,6 +8,9 @@ import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import java.lang.ref.WeakReference;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
@@ -16,6 +19,9 @@ import androidx.media3.session.MediaSessionService;
 public final class PlaybackService extends MediaSessionService {
     private MediaSession session;
     private ExoPlayer player;
+    private final Handler sleepHandler = new Handler(Looper.getMainLooper());
+    private Runnable sleepPauseAction;
+    private long sleepDeadlineElapsed;
     private static WeakReference<PlaybackService> running = new WeakReference<>(null);
 
     @Override public void onCreate() {
@@ -51,7 +57,45 @@ public final class PlaybackService extends MediaSessionService {
         return true;
     }
 
+    /**
+     * Pause playback after a real elapsed-time interval, including when the
+     * Activity goes to PiP or the screen is locked. One active timer per player.
+     * Elapsed realtime is monotonic and unaffected by wall-clock changes.
+     */
+    static boolean setSleepTimer(int minutes) {
+        PlaybackService service=running.get();
+        if(service==null || service.player==null || minutes<1 || minutes>240)
+            return false;
+        service.cancelSleepTimerInternal();
+        service.sleepDeadlineElapsed=SystemClock.elapsedRealtime()+minutes*60_000L;
+        service.sleepPauseAction=()->{
+            service.sleepPauseAction=null;
+            service.sleepDeadlineElapsed=0;
+            if(service.player!=null) service.player.pause();
+        };
+        service.sleepHandler.postDelayed(service.sleepPauseAction,minutes*60_000L);
+        return true;
+    }
+
+    static long sleepTimerRemainingMillis() {
+        PlaybackService service=running.get();
+        if(service==null)return 0;
+        return Math.max(0,service.sleepDeadlineElapsed-SystemClock.elapsedRealtime());
+    }
+
+    static void cancelSleepTimer() {
+        PlaybackService service=running.get();
+        if(service!=null) service.cancelSleepTimerInternal();
+    }
+
+    private void cancelSleepTimerInternal() {
+        if(sleepPauseAction!=null) sleepHandler.removeCallbacks(sleepPauseAction);
+        sleepPauseAction=null;
+        sleepDeadlineElapsed=0;
+    }
+
     @Override public void onDestroy() {
+        cancelSleepTimerInternal();
         running.clear();
         if(session!=null) {
             session.getPlayer().release();

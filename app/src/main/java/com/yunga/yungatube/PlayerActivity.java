@@ -12,6 +12,10 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.InputType;
+import android.widget.EditText;
 import android.util.Rational;
 import android.view.Gravity;
 import android.view.View;
@@ -60,11 +64,19 @@ public final class PlayerActivity extends Activity {
     private boolean offline=false, ready=false, selecting=false;
     private Uri offlineUri;
     private int position=0;
+    private final Handler sleepUiHandler=new Handler(Looper.getMainLooper());
+    private final Runnable sleepUiTicker=new Runnable() {
+        @Override public void run() {
+            refreshSleepTimer();
+            sleepUiHandler.postDelayed(this,1000);
+        }
+    };
     private LinearLayout root, header, details, suggestions;
     private ScrollView scroll;
     private FrameLayout viewport;
     private PlayerView playerView;
-    private TextView status, qualityButton, speedButton, savedButton, followButton, title, author;
+    private TextView status, qualityButton, speedButton, savedButton, followButton,
+        title, author, sleepButton;
 
     private final Player.Listener listener=new Player.Listener(){
         @Override public void onPlayerError(PlaybackException error) {
@@ -196,6 +208,15 @@ public final class PlayerActivity extends Activity {
         addWithMargin(line3,later);
         details.addView(line3);
 
+        LinearLayout sleepRow=Ui.horizontal(this);
+        sleepRow.setPadding(0,Ui.dp(this,12),0,0);
+        sleepButton=Ui.pill(this,"☾  Temporizador",false);
+        sleepButton.setContentDescription("Configurar pausa automática del video");
+        sleepButton.setOnClickListener(v->showSleepTimerDialog());
+        sleepRow.addView(sleepButton);
+        details.addView(sleepRow);
+        refreshSleepTimer();
+
         TextView heading=Ui.text(this,"Sigue viendo",19,Ui.WHITE,true);
         heading.setPadding(0,Ui.dp(this,24),0,Ui.dp(this,12));
         details.addView(heading);
@@ -220,6 +241,8 @@ public final class PlayerActivity extends Activity {
 
     @Override protected void onStart(){
         super.onStart();
+        sleepUiHandler.removeCallbacks(sleepUiTicker);
+        sleepUiHandler.post(sleepUiTicker);
         SessionToken token=new SessionToken(this,new ComponentName(this,PlaybackService.class));
         pendingController=new MediaController.Builder(this,token).buildAsync();
         final ListenableFuture<MediaController> request=pendingController;
@@ -237,6 +260,7 @@ public final class PlayerActivity extends Activity {
     }
 
     @Override protected void onStop(){
+        sleepUiHandler.removeCallbacks(sleepUiTicker);
         playerView.setPlayer(null);
         if(controller!=null){controller.removeListener(listener);controller=null;}
         if(pendingController!=null){
@@ -386,6 +410,97 @@ public final class PlayerActivity extends Activity {
             }).setNegativeButton("Cancelar",null).show();
     }
 
+    private void showSleepTimerDialog() {
+        final String[] options={
+            "5 minutos", "10 minutos", "15 minutos", "30 minutos",
+            "45 minutos", "60 minutos", "Elegir otro tiempo...",
+            "Desactivar temporizador"
+        };
+        final int[] minutes={5,10,15,30,45,60};
+        long remaining=PlaybackService.sleepTimerRemainingMillis();
+        String message=remaining>0 ?
+            "La reproducción se pausará automáticamente. Quedan "+
+                ((remaining+59_999)/60_000)+" min. Puedes sustituir o cancelar el tiempo." :
+            "El video se pausará automáticamente al terminar el tiempo, "+
+                "aunque la pantalla esté apagada.";
+        new AlertDialog.Builder(this)
+            .setTitle("☾ Temporizador de descanso")
+            .setMessage(message)
+            .setItems(options,(dialog,choice)->{
+                if(choice<minutes.length)activateSleepTimer(minutes[choice]);
+                else if(choice==6)customSleepTimer();
+                else {
+                    PlaybackService.cancelSleepTimer();
+                    refreshSleepTimer();
+                    toast("Temporizador desactivado");
+                }
+            })
+            .setNegativeButton("Cerrar",null)
+            .show();
+    }
+
+    private void customSleepTimer() {
+        EditText input=new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setSingleLine(true);
+        input.setText("20");
+        input.setSelectAllOnFocus(true);
+        LinearLayout wrapper=Ui.vertical(this);
+        wrapper.setPadding(Ui.dp(this,24),Ui.dp(this,6),
+            Ui.dp(this,24),Ui.dp(this,6));
+        wrapper.addView(input,Ui.lp(this,-1,-2));
+        AlertDialog dialog=new AlertDialog.Builder(this)
+            .setTitle("Tiempo personalizado")
+            .setMessage("Introduce entre 1 y 240 minutos.")
+            .setView(wrapper)
+            .setNegativeButton("Cancelar",null)
+            .setPositiveButton("Activar",null)
+            .create();
+        dialog.setOnShowListener(ignored->dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            .setOnClickListener(v->{
+                int minutes;
+                try { minutes=Integer.parseInt(input.getText().toString().trim()); }
+                catch(NumberFormatException e) {
+                    input.setError("Escribe un número entre 1 y 240");
+                    return;
+                }
+                if(minutes<1 || minutes>240) {
+                    input.setError("Elige entre 1 y 240 minutos");
+                    return;
+                }
+                activateSleepTimer(minutes);
+                dialog.dismiss();
+            }));
+        dialog.show();
+    }
+
+    private void activateSleepTimer(int minutes) {
+        if(!PlaybackService.setSleepTimer(minutes)) {
+            toast("Abre un video y espera a que se conecte el reproductor.");
+            return;
+        }
+        refreshSleepTimer();
+        toast("El video se pausará en "+minutes+" minutos.");
+    }
+
+    private void refreshSleepTimer() {
+        if(sleepButton==null)return;
+        long remaining=PlaybackService.sleepTimerRemainingMillis();
+        if(remaining<=0) {
+            sleepButton.setText("☾  Temporizador");
+            sleepButton.setBackground(Ui.background(Ui.SOFT,50,this));
+            return;
+        }
+        long seconds=(remaining+999)/1000;
+        String countdown=seconds>=3600 ?
+            String.format(java.util.Locale.US,"%d:%02d:%02d",
+                seconds/3600,(seconds%3600)/60,seconds%60) :
+            String.format(java.util.Locale.US,"%02d:%02d",
+                seconds/60,seconds%60);
+        sleepButton.setText("☾  Pausa en "+countdown);
+        sleepButton.setBackground(Ui.background(Ui.RED,50,this));
+    }
+
     private void speedPicker(){
         if(controller==null){toast("Reproductor todavía no disponible");return;}
         String[] labels={"0.5×","0.75×","Normal 1×","1.25×","1.5×","1.75×","2×"};
@@ -520,6 +635,7 @@ public final class PlayerActivity extends Activity {
     }
 
     @Override protected void onDestroy(){
+        sleepUiHandler.removeCallbacks(sleepUiTicker);
         worker.shutdownNow();
         super.onDestroy();
     }
