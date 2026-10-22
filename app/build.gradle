@@ -2,6 +2,22 @@ plugins {
     id 'com.android.application'
 }
 
+// Signing key is provided privately via the GitHub Actions secret
+// YUNGATUBE_SIGNING_BUNDLE. Never commit the JKS or the secret to this repo.
+def signingSecret = System.getenv('YUNGATUBE_SIGNING_BUNDLE')
+def stableSigning = null
+if (signingSecret != null && !signingSecret.trim().isEmpty()) {
+    def bundle = new groovy.json.JsonSlurper().parseText(signingSecret)
+    if (!bundle.keystore_base64 || !bundle.password || bundle.alias != 'yungatube') {
+        throw new GradleException('YUNGATUBE_SIGNING_BUNDLE is incomplete or invalid')
+    }
+    def tempDir = System.getenv('RUNNER_TEMP') ?: System.getProperty('java.io.tmpdir')
+    def keystore = new File(tempDir, 'yungatube-stable-signing.jks')
+    keystore.bytes = java.util.Base64.getDecoder().decode(bundle.keystore_base64)
+    stableSigning = [file: keystore, password: bundle.password.toString(),
+                     alias: bundle.alias.toString()]
+}
+
 android {
     namespace 'com.yunga.yungatube'
     compileSdk 35
@@ -10,8 +26,20 @@ android {
         applicationId 'com.yunga.yungatube'
         minSdk 24
         targetSdk 35
-        versionCode 5
-        versionName '0.3.2'
+        versionCode 6
+        versionName '0.3.3'
+    }
+
+    signingConfigs {
+        if (stableSigning != null) {
+            permanent {
+                storeFile stableSigning.file
+                storePassword stableSigning.password
+                keyAlias stableSigning.alias
+                keyPassword stableSigning.password
+                storeType 'pkcs12'
+            }
+        }
     }
 
     compileOptions {
@@ -21,7 +49,20 @@ android {
     }
 
     buildTypes {
+        // Debug uses an EPHEMERAL key on each GitHub runner. It is for
+        // testing only and intentionally installs as a separate app.
+        debug {
+            applicationIdSuffix '.prueba'
+            manifestPlaceholders = [appLabel: 'YungaTube Prueba']
+        }
+        // Stable identity and certificate are both required for updates.
+        // Distinct package ID means the OLD app is never removed.
         release {
+            applicationIdSuffix '.estable'
+            manifestPlaceholders = [appLabel: 'YungaTube']
+            if (stableSigning != null) {
+                signingConfig signingConfigs.permanent
+            }
             minifyEnabled false
         }
     }
