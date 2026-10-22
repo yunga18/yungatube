@@ -62,6 +62,7 @@ public final class PlayerActivity extends Activity {
     private JSONObject video;
     private String id;
     private boolean offline=false, ready=false, selecting=false;
+    private long pendingResumeMs=0;
     private Uri offlineUri;
     private int position=0;
     private final Handler sleepUiHandler=new Handler(Looper.getMainLooper());
@@ -358,6 +359,11 @@ public final class PlayerActivity extends Activity {
     }
 
     @Override protected void onStop(){
+        if(controller!=null && controller.getPlaybackState()!=Player.STATE_ENDED) {
+            long duration=controller.getDuration();
+            Store.saveProgress(this,video,controller.getCurrentPosition(),
+                duration>0?duration:0);
+        }
         sleepUiHandler.removeCallbacks(sleepUiTicker);
         playerView.setPlayer(null);
         if(controller!=null){controller.removeListener(listener);controller=null;}
@@ -459,12 +465,23 @@ public final class PlayerActivity extends Activity {
 
     private void startSourceWhenReady(){
         if(!ready || controller==null)return;
-        if(offline) {
-            qualityButton.setText("Sin conexión");
-            playUri(offlineUri,"video/mp4",0);
+        // If MediaSession is still playing this video after navigating away,
+        // attach to the current item rather than starting it over.
+        MediaItem current=controller.getCurrentMediaItem();
+        if(!offline && current!=null && id.equals(current.mediaId)
+                && controller.getPlaybackState()!=Player.STATE_IDLE) {
+            status.setVisibility(View.GONE);
             return;
         }
-        if(!options.isEmpty())playOption(options.get(position),0);
+        long saved=Store.progressMs(this,id);
+        pendingResumeMs=saved>5000?saved:0;
+        if(offline) {
+            qualityButton.setText("Sin conexión");
+            playUri(offlineUri,"video/mp4",pendingResumeMs);
+            return;
+        }
+        if(!options.isEmpty())playOption(options.get(position),pendingResumeMs);
+        if(pendingResumeMs>0)toast("Continuando desde "+Ui.duration((int)(pendingResumeMs/1000)));
     }
 
     private void playOption(StreamOption stream,long seek){

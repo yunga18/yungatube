@@ -123,6 +123,60 @@ final class Store {
         return !found;
     }
 
+
+    /**
+     * Most-recently-watched unfinished items. Stored as JSON in local
+     * SharedPreferences so playback resumes even if Android kills the process.
+     */
+    static synchronized void saveProgress(Context context, JSONObject video,
+                                          long positionMs, long durationMs) {
+        String id=Ui.id(video);
+        if(id.isEmpty() || positionMs<3000) return;
+        if(durationMs>0 && durationMs-positionMs<=5000) {
+            clearProgress(context,id);
+            return;
+        }
+        JSONArray previous=list(context,"continue_watching");
+        JSONArray updated=new JSONArray();
+        JSONObject entry=small(video);
+        try {
+            entry.put("resumeMs",positionMs);
+            entry.put("durationMs",Math.max(0,durationMs));
+            entry.put("savedAt",System.currentTimeMillis());
+        } catch(Exception ignored) {}
+        updated.put(entry);
+        for(int i=0;i<previous.length() && updated.length()<60;i++) {
+            JSONObject old=previous.optJSONObject(i);
+            if(old!=null && !id.equals(old.optString("videoId","")))
+                updated.put(old);
+        }
+        save(context,"continue_watching",updated);
+    }
+
+    static synchronized long progressMs(Context context,String id) {
+        JSONArray records=list(context,"continue_watching");
+        for(int i=0;i<records.length();i++) {
+            JSONObject entry=records.optJSONObject(i);
+            if(entry!=null && id.equals(entry.optString("videoId","")))
+                return Math.max(0,entry.optLong("resumeMs",0));
+        }
+        return 0;
+    }
+
+    static synchronized JSONArray continueWatching(Context context) {
+        return list(context,"continue_watching");
+    }
+
+    static synchronized void clearProgress(Context context,String id) {
+        JSONArray previous=list(context,"continue_watching"),updated=new JSONArray();
+        for(int i=0;i<previous.length();i++) {
+            JSONObject item=previous.optJSONObject(i);
+            if(item!=null && !id.equals(item.optString("videoId","")))
+                updated.put(item);
+        }
+        save(context,"continue_watching",updated);
+    }
+
     static void clearHistory(Context c) {
         save(c,"history",new JSONArray());
     }

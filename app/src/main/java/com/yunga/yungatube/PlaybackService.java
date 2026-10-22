@@ -11,6 +11,8 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import androidx.media3.common.Player;
+import org.json.JSONObject;
 import java.lang.ref.WeakReference;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
@@ -20,6 +22,24 @@ public final class PlaybackService extends MediaSessionService {
     private MediaSession session;
     private ExoPlayer player;
     private final Handler sleepHandler = new Handler(Looper.getMainLooper());
+    private final Handler progressHandler=new Handler(Looper.getMainLooper());
+    private final Runnable progressSaver=new Runnable() {
+        @Override public void run() {
+            savePlaybackPosition();
+            progressHandler.postDelayed(this,4000);
+        }
+    };
+    private final Player.Listener progressListener=new Player.Listener() {
+        @Override public void onIsPlayingChanged(boolean isPlaying) {
+            if(!isPlaying) savePlaybackPosition();
+        }
+        @Override public void onPlaybackStateChanged(int state) {
+            if(state==Player.STATE_ENDED && player!=null) {
+                androidx.media3.common.MediaItem item=player.getCurrentMediaItem();
+                if(item!=null) Store.clearProgress(PlaybackService.this,item.mediaId);
+            }
+        }
+    };
     private Runnable sleepPauseAction;
     private long sleepDeadlineElapsed;
     private static WeakReference<PlaybackService> running = new WeakReference<>(null);
@@ -29,6 +49,8 @@ public final class PlaybackService extends MediaSessionService {
         player=new ExoPlayer.Builder(this).build();
         running=new WeakReference<>(this);
         player.setHandleAudioBecomingNoisy(true);
+        player.addListener(progressListener);
+        progressHandler.postDelayed(progressSaver,4000);
         session=new MediaSession.Builder(this,player).build();
     }
 
@@ -94,7 +116,34 @@ public final class PlaybackService extends MediaSessionService {
         sleepDeadlineElapsed=0;
     }
 
+
+    private void savePlaybackPosition() {
+        if(player==null || player.getPlaybackState()==Player.STATE_ENDED)return;
+        androidx.media3.common.MediaItem item=player.getCurrentMediaItem();
+        if(item==null || item.mediaId==null ||
+            !item.mediaId.matches("[A-Za-z0-9_-]{11}"))return;
+        long positionMs=Math.max(0,player.getCurrentPosition());
+        if(positionMs<3000)return;
+        long durationMs=player.getDuration();
+        if(durationMs<=0) durationMs=0;
+        JSONObject details=new JSONObject();
+        try {
+            details.put("videoId",item.mediaId);
+            MediaMetadata meta=item.mediaMetadata;
+            details.put("title",meta.title==null?"Video":meta.title.toString());
+            details.put("author",meta.artist==null?"":meta.artist.toString());
+        }catch(Exception ignored){}
+        Store.saveProgress(this,details,positionMs,durationMs);
+    }
+
+    @Override public void onTaskRemoved(android.content.Intent rootIntent) {
+        savePlaybackPosition();
+        super.onTaskRemoved(rootIntent);
+    }
+
     @Override public void onDestroy() {
+        progressHandler.removeCallbacks(progressSaver);
+        savePlaybackPosition();
         cancelSleepTimerInternal();
         running.clear();
         if(session!=null) {
