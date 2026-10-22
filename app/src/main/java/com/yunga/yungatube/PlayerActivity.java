@@ -115,6 +115,8 @@ public final class PlayerActivity extends Activity {
         if(offline)offlineUri=Uri.parse(offlineValue);
         getWindow().setStatusBarColor(Ui.BG);
         getWindow().setNavigationBarColor(Ui.BG);
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         build();
         Store.visited(this,video);
         if(!offline)loadVideo();
@@ -135,7 +137,11 @@ public final class PlayerActivity extends Activity {
         TextView back=Ui.pill(this,"‹  Volver",false);
         back.setOnClickListener(v->finish());
         header.addView(back);
-        TextView logo=Ui.text(this," YungaTube · v0.3.4",15,Ui.WHITE,true);
+        ImageView avatar=new ImageView(this);
+        avatar.setImageResource(R.drawable.logo_yungatube);
+        avatar.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        header.addView(avatar,Ui.lp(this,36,40));
+        TextView logo=Ui.text(this," YungaTube · v0.3.5",14,Ui.WHITE,true);
         header.addView(logo,new LinearLayout.LayoutParams(0,Ui.dp(this,42),1));
         TextView toolsTop=Ui.pill(this,"☾ Funciones",true);
         toolsTop.setContentDescription("Abrir todas las funciones y temporizador");
@@ -151,7 +157,7 @@ public final class PlayerActivity extends Activity {
         playerView.setUseController(true);
         playerView.setKeepScreenOn(true);
         viewport.addView(playerView,new FrameLayout.LayoutParams(-1,-1));
-        status=Ui.text(this,"Obteniendo video...",13,Ui.WHITE,false);
+        status=Ui.text(this,"Obteniendo video...",13,Color.WHITE,false);
         status.setGravity(Gravity.CENTER);
         status.setPadding(Ui.dp(this,20),0,Ui.dp(this,20),0);
         status.setBackgroundColor(0xBB000000);
@@ -304,7 +310,7 @@ public final class PlayerActivity extends Activity {
             "ℹ Reproducción en segundo plano"
         };
         new AlertDialog.Builder(this)
-            .setTitle("Funciones · YungaTube 0.3.4")
+            .setTitle("Funciones · YungaTube 0.3.5")
             .setItems(choices,(dialog,choice)->{
                 switch(choice) {
                     case 0: showSleepTimerDialog();break;
@@ -735,7 +741,8 @@ public final class PlayerActivity extends Activity {
             wide?-1:Ui.dp(this,220)));
         getWindow().getDecorView().setSystemUiVisibility(wide?
             View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY:0);
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY:
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
     }
 
     @Override public void onBackPressed(){

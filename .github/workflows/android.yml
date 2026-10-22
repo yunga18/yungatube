@@ -52,6 +52,10 @@ jobs:
           grep -q 'enterPip' app/src/main/java/com/yunga/yungatube/PlayerActivity.java
           grep -q 'saveOffline' app/src/main/java/com/yunga/yungatube/PlayerActivity.java
           grep -q 'Funciones' app/src/main/java/com/yunga/yungatube/PlayerActivity.java
+          grep -q 'continueWatching' app/src/main/java/com/yunga/yungatube/Store.java
+          grep -q 'addContinueSection' app/src/main/java/com/yunga/yungatube/MainActivity.java
+          grep -q 'savePlaybackPosition' app/src/main/java/com/yunga/yungatube/PlaybackService.java
+          test -f app/src/main/res/drawable-nodpi/logo_yungatube.jpg
 
       - name: Compilar APK de prueba (no actualizable)
         run: gradle --no-daemon :app:assembleDebug

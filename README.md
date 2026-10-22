@@ -2,13 +2,24 @@
 
 Aplicación Android independiente, gratuita y sin cuenta de Google. El código está publicado bajo GPL-3.0-or-later.
 
-## Controles recuperados y siempre visibles (v0.3.4)
+## Novedades v0.3.5: logo, verde claro y Continuar viendo
+
+- Logo proporcionado por el usuario en cabeceras y como icono de la APK.
+- Interfaz rediseñada en tonos verde menta, fondos claros, texto oscuro y controles legibles.
+- El avance de reproducción se guarda en almacenamiento local cada 4 segundos desde MediaSessionService, incluso si la pantalla del video se cierra y el audio continúa en segundo plano.
+- Al abrir nuevamente el mismo video, la reproducción salta automáticamente al último punto guardado.
+- «Continuar viendo» en la biblioteca y en una fila destacada de Inicio, con barra de avance.
+- Cuando termina un video, se elimina de «Continuar viendo».
+- **Nota:** al tratarse de una nueva instalación de prueba con otra ID, no puede leer el historial de una APK previa; el avance comienza a guardarse en esta versión.
+- La firma de GitHub Actions de la APK de prueba es temporal. No desinstales versiones anteriores si quieres conservar datos antiguos.
+
+## Controles recuperados y siempre visibles (v0.3.5)
 
 - **☾ Funciones** ahora aparece en la barra superior al abrir un video: abre un menú de temporizador, calidad, velocidad, ventana flotante, solo audio, descargas, Ver después, favoritos y reproducción en segundo plano.
 - Los mismos controles aparecen en una **cuadrícula de dos columnas** debajo del título; el temporizador ocupa una fila completa.
-- Pantalla de inicio y reproductor muestran **0.3.4** de forma visible para que no confundas una instalación anterior con la nueva.
+- Pantalla de inicio y reproductor muestran **0.3.5** de forma visible para que no confundas una instalación anterior con la nueva.
 - Ajustes → «Información de versión y funciones» muestra el identificador de paquete instalado.
-- La APK 0.3.4 de prueba usa **un identificador exclusivo de esta revisión**, evitando conflictos de firma con tus instalaciones anteriores. La versión 0.3.4 sigue siendo una **aplicación separada** (`com.yunga.yungatube.revision34`) y no sustituye la app anterior ni conserva su biblioteca automáticamente. GitHub Actions usa una firma debug que puede cambiar en cada compilación.
+- La APK 0.3.5 de prueba usa **un identificador exclusivo de esta revisión**, evitando conflictos de firma con tus instalaciones anteriores. La versión 0.3.5 sigue siendo una **aplicación separada** (`com.yunga.yungatube.revision35`) y no sustituye la app anterior ni conserva su biblioteca automáticamente. GitHub Actions usa una firma debug que puede cambiar en cada compilación.
 
 ## Solución a «El paquete no es válido»
 
@@ -16,7 +27,7 @@ Las versiones iniciales eran APK de depuración generadas por GitHub Actions. Ca
 
 ### Lo que corregimos
 
-- APK de prueba: ID `com.yunga.yungatube.revision34`, etiquetada **YungaTube Prueba**. Se genera siempre y se instala sin reemplazar ninguna de las antiguas.
+- APK de prueba: ID `com.yunga.yungatube.revision35`, etiquetada **YungaTube Prueba**. Se genera siempre y se instala sin reemplazar ninguna de las antiguas.
 - APK de uso diario: ID `com.yunga.yungatube.estable`, etiquetada **YungaTube**. Se firma con un **certificado permanente** configurado mediante un secreto privado en GitHub.
 - La primera instalación estable aparece en paralelo a las versiones antiguas, sin borrarlas. Todas las APK **estables siguientes** usarán la misma clave, por lo que podrás actualizarlas normalmente.
 - El repositorio público NO contiene el archivo JKS privado ni su contraseña.

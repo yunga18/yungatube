@@ -13,12 +13,12 @@ import android.widget.TextView;
 import org.json.JSONObject;
 
 final class Ui {
-    static final int BG = Color.rgb(16,17,22);
-    static final int PANEL = Color.rgb(28,30,38);
-    static final int SOFT = Color.rgb(38,40,49);
-    static final int WHITE = Color.rgb(247,247,249);
-    static final int MUTED = Color.rgb(169,172,185);
-    static final int RED = Color.rgb(250,59,83);
+    static final int BG = Color.rgb(241,255,245);
+    static final int PANEL = Color.rgb(222,248,231);
+    static final int SOFT = Color.rgb(201,239,213);
+    static final int WHITE = Color.rgb(23,52,34);
+    static final int MUTED = Color.rgb(92,124,102);
+    static final int RED = Color.rgb(62,197,109);
 
     private Ui() {}
 

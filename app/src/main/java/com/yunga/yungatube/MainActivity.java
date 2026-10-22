@@ -32,10 +32,11 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
     private LinearLayout root, feed, bottom, filterRow, libraryTabs;
+    private HorizontalScrollView libraryScroll;
     private ProgressBar progress;
     private EditText search;
     private TextView heading;
-    private String tab="Inicio", selectedTopic="Todo", librarySection="Favoritos";
+    private String tab="Inicio", selectedTopic="Todo", librarySection="Continuar viendo";
     private String lastQuery="";
     private int token=0;
 
@@ -43,6 +44,8 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         getWindow().setStatusBarColor(Ui.BG);
         getWindow().setNavigationBarColor(Ui.BG);
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         drawLayout();
         changeTab("Inicio");
         openIncoming(getIntent());
@@ -72,10 +75,12 @@ public final class MainActivity extends Activity {
 
         LinearLayout brand=Ui.horizontal(this);
         brand.setPadding(Ui.dp(this,14),Ui.dp(this,10),Ui.dp(this,12),Ui.dp(this,8));
-        TextView play=Ui.pill(this,"▶",true);
-        play.setTextSize(18);
-        brand.addView(play,Ui.lp(this,46,40));
-        TextView word=Ui.text(this," YungaTube 0.3.4",19,Ui.WHITE,true);
+        ImageView play=new ImageView(this);
+        play.setImageResource(R.drawable.logo_yungatube);
+        play.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        play.setContentDescription("Logo YungaTube");
+        brand.addView(play,Ui.lp(this,46,46));
+        TextView word=Ui.text(this," YungaTube 0.3.5",19,Ui.WHITE,true);
         brand.addView(word,new LinearLayout.LayoutParams(0,Ui.dp(this,44),1));
         TextView refresh=Ui.text(this,"⟳",27,Ui.WHITE,false);
         refresh.setGravity(Gravity.CENTER);
@@ -133,7 +138,12 @@ public final class MainActivity extends Activity {
         container.addView(heading);
         libraryTabs=Ui.horizontal(this);
         libraryTabs.setPadding(Ui.dp(this,12),0,Ui.dp(this,12),Ui.dp(this,12));
-        container.addView(libraryTabs);
+        libraryScroll=new HorizontalScrollView(this);
+        libraryScroll.setHorizontalScrollBarEnabled(false);
+        libraryScroll.setFillViewport(false);
+        libraryScroll.addView(libraryTabs);
+        libraryScroll.setVisibility(View.GONE);
+        container.addView(libraryScroll);
         feed=Ui.vertical(this);
         container.addView(feed);
         scroll.addView(container);
@@ -227,7 +237,7 @@ public final class MainActivity extends Activity {
     private void refresh(){
         topics();
         libraryTabs.removeAllViews();
-        libraryTabs.setVisibility("Biblioteca".equals(tab)?View.VISIBLE:View.GONE);
+        libraryScroll.setVisibility("Biblioteca".equals(tab)?View.VISIBLE:View.GONE);
         switch(tab){
             case "Inicio":
                 heading.setText(selectedTopic.equals("Todo")?"Recomendados para descubrir":selectedTopic);
@@ -296,7 +306,7 @@ public final class MainActivity extends Activity {
     }
 
     private void libraryPicker(){
-        String[] names={"Favoritos","Ver después","Historial"};
+        String[] names={"Continuar viendo","Favoritos","Ver después","Historial"};
         for(String name:names){
             TextView chip=Ui.pill(this,name,name.equals(librarySection));
             LinearLayout.LayoutParams p=Ui.lp(this,-2,38);
@@ -311,6 +321,10 @@ public final class MainActivity extends Activity {
     private void library(){
         ++token;
         progress.setVisibility(View.GONE);
+        if("Continuar viendo".equals(librarySection)) {
+            cards(Store.continueWatching(this));
+            return;
+        }
         String key="Favoritos".equals(librarySection)?"favorites":
             ("Ver después".equals(librarySection)?"watch_later":"history");
         cards(Store.list(this,key));
@@ -357,8 +371,10 @@ public final class MainActivity extends Activity {
 
     private void cards(JSONArray items){
         feed.removeAllViews();
+        if("Inicio".equals(tab))addContinueSection();
         if(items==null || items.length()==0){
-            empty("No hay videos aquí por ahora.\nPrueba otra búsqueda.");
+            if(feed.getChildCount()==0)
+                empty("No hay videos aquí por ahora.\nPrueba otra búsqueda.");
             return;
         }
         for(int i=0;i<Math.min(90,items.length());i++){
@@ -367,6 +383,78 @@ public final class MainActivity extends Activity {
             addCard(item,"",()->play(item,null),null);
         }
         if(feed.getChildCount()==0)empty("No encontramos videos para mostrar.");
+    }
+
+
+    private void addContinueSection() {
+        JSONArray items=Store.continueWatching(this);
+        if(items.length()==0) return;
+        LinearLayout headingRow=Ui.horizontal(this);
+        headingRow.setPadding(Ui.dp(this,15),Ui.dp(this,12),
+            Ui.dp(this,15),Ui.dp(this,10));
+        TextView heading=Ui.text(this,"▶ Continuar viendo",19,Ui.WHITE,true);
+        headingRow.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
+        TextView all=Ui.text(this,"Ver todos ›",13,Ui.RED,true);
+        all.setOnClickListener(v->{
+            librarySection="Continuar viendo";
+            changeTab("Biblioteca");
+        });
+        headingRow.addView(all);
+        feed.addView(headingRow);
+
+        HorizontalScrollView scroll=new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout list=Ui.horizontal(this);
+        list.setPadding(Ui.dp(this,12),0,Ui.dp(this,12),0);
+        scroll.addView(list);
+        for(int i=0;i<Math.min(items.length(),12);i++) {
+            JSONObject item=items.optJSONObject(i);
+            if(item==null || Ui.id(item).isEmpty())continue;
+            LinearLayout card=Ui.vertical(this);
+            card.setBackground(Ui.background(Ui.PANEL,14,this));
+            LinearLayout.LayoutParams cardParams=Ui.lp(this,182,-2);
+            cardParams.leftMargin=Ui.dp(this,4);
+            cardParams.rightMargin=Ui.dp(this,5);
+            list.addView(card,cardParams);
+
+            FrameLayout thumbnail=new FrameLayout(this);
+            ImageView picture=new ImageView(this);
+            picture.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            thumbnail.addView(picture,new FrameLayout.LayoutParams(-1,-1));
+            Images.load(picture,Ui.id(item));
+            int pct=0;
+            long dur=item.optLong("durationMs",0);
+            if(dur>0)pct=(int)Math.min(100,Math.max(0,100*item.optLong("resumeMs",0)/dur));
+            View track=new View(this);
+            track.setBackgroundColor(0x99000000);
+            FrameLayout.LayoutParams trackLp=new FrameLayout.LayoutParams(-1,Ui.dp(this,4),Gravity.BOTTOM);
+            thumbnail.addView(track,trackLp);
+            if(pct>0){
+                View meter=new View(this);
+                meter.setBackgroundColor(Ui.RED);
+                FrameLayout.LayoutParams meterLp=new FrameLayout.LayoutParams(
+                    Ui.dp(this,182)*pct/100,Ui.dp(this,4),Gravity.BOTTOM|Gravity.LEFT);
+                thumbnail.addView(meter,meterLp);
+            }
+            card.addView(thumbnail,Ui.lp(this,-1,102));
+            TextView name=Ui.text(this,item.optString("title","Video"),13,Ui.WHITE,true);
+            name.setMaxLines(2);
+            name.setPadding(Ui.dp(this,9),Ui.dp(this,8),
+                Ui.dp(this,9),Ui.dp(this,3));
+            card.addView(name);
+            String time=Ui.duration((int)(item.optLong("resumeMs",0)/1000));
+            TextView resume=Ui.text(this,"Desde "+time,12,Ui.MUTED,false);
+            resume.setPadding(Ui.dp(this,9),0,Ui.dp(this,9),Ui.dp(this,10));
+            card.addView(resume);
+            card.setOnClickListener(v->play(item,null));
+        }
+        feed.addView(scroll);
+        View spacing=new View(this);
+        feed.addView(spacing,Ui.lp(this,-1,Ui.dp(this,10)));
+        TextView forYou=Ui.text(this,"Descubre más videos",18,Ui.WHITE,true);
+        forYou.setPadding(Ui.dp(this,15),Ui.dp(this,12),
+            Ui.dp(this,15),Ui.dp(this,12));
+        feed.addView(forYou);
     }
 
     private void addCard(JSONObject video,String suffix,Runnable action,Runnable longPress){
@@ -406,7 +494,10 @@ public final class MainActivity extends Activity {
         name.setEllipsize(android.text.TextUtils.TruncateAt.END);
         meta.addView(name);
         String sub=video.optString("author","Canal");
-        if(suffix!=null && !suffix.isEmpty())sub=sub+"  ·  "+suffix;
+        if(video.optLong("resumeMs",0)>0) {
+            sub=sub+"  ·  Continuar desde "+
+                Ui.duration((int)(video.optLong("resumeMs",0)/1000));
+        } else if(suffix!=null && !suffix.isEmpty())sub=sub+"  ·  "+suffix;
         else if(!video.optString("publishedText","").isEmpty())
             sub=sub+"  ·  "+video.optString("publishedText");
         TextView channel=Ui.text(this,sub,12,Ui.MUTED,false);
@@ -477,7 +568,7 @@ public final class MainActivity extends Activity {
 
     private void showVersionInfo() {
         new AlertDialog.Builder(this)
-            .setTitle("YungaTube · versión 0.3.4")
+            .setTitle("YungaTube · versión 0.3.5")
             .setMessage("Edición instalada: "+getPackageName()+
                 "\\n\\nPara encontrar los controles de reproducción, abre un video "+
                 "y toca «☾ Funciones» en la barra superior. Allí están "+
@@ -535,7 +626,7 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume(){
         super.onResume();
-        if("Biblioteca".equals(tab)||"Descargas".equals(tab)){
+        if("Biblioteca".equals(tab)||"Descargas".equals(tab)||"Inicio".equals(tab)){
             if(root!=null)refresh();
         }
     }

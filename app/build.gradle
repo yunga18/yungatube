@@ -26,8 +26,8 @@ android {
         applicationId 'com.yunga.yungatube'
         minSdk 24
         targetSdk 35
-        versionCode 7
-        versionName '0.3.4'
+        versionCode 8
+        versionName '0.3.5'
     }
 
     signingConfigs {
@@ -52,8 +52,8 @@ android {
         // Debug uses an EPHEMERAL key on each GitHub runner. It is for
         // testing only and intentionally installs as a separate app.
         debug {
-            applicationIdSuffix '.revision34'
-            manifestPlaceholders = [appLabel: 'YT 0.3.4 Prueba']
+            applicationIdSuffix '.revision35'
+            manifestPlaceholders = [appLabel: 'YT Verde 0.3.5']
         }
         // Stable identity and certificate are both required for updates.
         // Distinct package ID means the OLD app is never removed.

@@ -7,8 +7,8 @@
     <application
         android:allowBackup="false"
         android:label="${appLabel}"
-        android:icon="@drawable/ic_launcher"
-        android:roundIcon="@drawable/ic_launcher"
+        android:icon="@drawable/logo_yungatube"
+        android:roundIcon="@drawable/logo_yungatube"
         android:theme="@style/Theme.YungaTube"
         android:usesCleartextTraffic="false">
         <service
