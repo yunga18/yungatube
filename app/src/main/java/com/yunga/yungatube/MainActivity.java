@@ -450,7 +450,7 @@ public final class MainActivity extends Activity {
         }
         feed.addView(scroll);
         View spacing=new View(this);
-        feed.addView(spacing,Ui.lp(this,-1,Ui.dp(this,10)));
+        feed.addView(spacing,Ui.lp(this,-1,10));
         TextView forYou=Ui.text(this,"Descubre más videos",18,Ui.WHITE,true);
         forYou.setPadding(Ui.dp(this,15),Ui.dp(this,12),
             Ui.dp(this,15),Ui.dp(this,12));
@@ -540,6 +540,8 @@ public final class MainActivity extends Activity {
 
     private void empty(String message){
         feed.removeAllViews();
+        // Unavailable search/trending servers must not hide locally saved progress.
+        if("Inicio".equals(tab))addContinueSection();
         TextView view=Ui.text(this,message,15,Ui.MUTED,false);
         view.setGravity(Gravity.CENTER);
         view.setPadding(Ui.dp(this,22),Ui.dp(this,60),Ui.dp(this,22),Ui.dp(this,18));
