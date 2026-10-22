@@ -43,6 +43,16 @@ jobs:
             echo "::notice::Para generar un APK estable, configura el secret YUNGATUBE_SIGNING_BUNDLE en Settings > Secrets and variables > Actions"
           fi
 
+      - name: Comprobar que las funciones están presentes en el código
+        shell: bash
+        run: |
+          grep -q 'showSleepTimerDialog' app/src/main/java/com/yunga/yungatube/PlayerActivity.java
+          grep -q 'showToolsDialog' app/src/main/java/com/yunga/yungatube/PlayerActivity.java
+          grep -q 'playAudioOnly' app/src/main/java/com/yunga/yungatube/PlayerActivity.java
+          grep -q 'enterPip' app/src/main/java/com/yunga/yungatube/PlayerActivity.java
+          grep -q 'saveOffline' app/src/main/java/com/yunga/yungatube/PlayerActivity.java
+          grep -q 'Funciones' app/src/main/java/com/yunga/yungatube/PlayerActivity.java
+
       - name: Compilar APK de prueba (no actualizable)
         run: gradle --no-daemon :app:assembleDebug
 

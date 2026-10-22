@@ -2,7 +2,15 @@
 
 Aplicación Android independiente, gratuita y sin cuenta de Google. El código está publicado bajo GPL-3.0-or-later.
 
-## Solución definitiva a «El paquete no es válido» (v0.3.3)
+## Controles recuperados y siempre visibles (v0.3.4)
+
+- **☾ Funciones** ahora aparece en la barra superior al abrir un video: abre un menú de temporizador, calidad, velocidad, ventana flotante, solo audio, descargas, Ver después, favoritos y reproducción en segundo plano.
+- Los mismos controles aparecen en una **cuadrícula de dos columnas** debajo del título; el temporizador ocupa una fila completa.
+- Pantalla de inicio y reproductor muestran **0.3.4** de forma visible para que no confundas una instalación anterior con la nueva.
+- Ajustes → «Información de versión y funciones» muestra el identificador de paquete instalado.
+- La APK de prueba sigue siendo una **aplicación separada** (`com.yunga.yungatube.prueba`) y no sustituye la app anterior ni conserva su biblioteca automáticamente. GitHub Actions usa una firma debug que puede cambiar en cada compilación.
+
+## Solución a «El paquete no es válido»
 
 Las versiones iniciales eran APK de depuración generadas por GitHub Actions. Cada runner podía crear una **clave de firma distinta**. Android no permite actualizar una app con la misma ID de paquete y firma distinta; no basta con subir el número de versión.
 

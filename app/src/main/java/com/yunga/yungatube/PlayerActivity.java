@@ -134,8 +134,13 @@ public final class PlayerActivity extends Activity {
         TextView back=Ui.pill(this,"‹  Volver",false);
         back.setOnClickListener(v->finish());
         header.addView(back);
-        TextView logo=Ui.text(this,"   YungaTube",20,Ui.WHITE,true);
-        header.addView(logo);
+        TextView logo=Ui.text(this," YungaTube · v0.3.4",15,Ui.WHITE,true);
+        header.addView(logo,new LinearLayout.LayoutParams(0,Ui.dp(this,42),1));
+        TextView toolsTop=Ui.pill(this,"☾ Funciones",true);
+        toolsTop.setContentDescription("Abrir todas las funciones y temporizador");
+        toolsTop.setTextSize(12);
+        toolsTop.setOnClickListener(v->showToolsDialog());
+        header.addView(toolsTop,Ui.lp(this,-2,42));
         root.addView(header);
 
         viewport=new FrameLayout(this);
@@ -165,56 +170,81 @@ public final class PlayerActivity extends Activity {
         author.setPadding(0,Ui.dp(this,8),0,Ui.dp(this,16));
         details.addView(author);
 
-        LinearLayout line1=Ui.horizontal(this);
-        savedButton=Ui.pill(this,"☆  Guardar",false);
-        savedButton.setOnClickListener(v->{Store.toggleFavorite(this,video);refreshSaved();});
-        line1.addView(savedButton);
-        followButton=Ui.pill(this,"+  Suscribirme",false);
-        addWithMargin(line1,followButton);
-        followButton.setOnClickListener(v->{
-            String channel=video.optString("authorId","");
-            if(channel.isEmpty()) {toast("No encontramos un ID válido de canal");return;}
-            Store.toggleSubscription(this,channel,video.optString("author","Canal"));
-            refreshSaved();
-        });
-        TextView share=Ui.pill(this,"↗",false);
-        addWithMargin(line1,share);
-        share.setOnClickListener(v->share());
-        details.addView(line1);
+        // All playback features are in a vertical 2-column layout. No
+        // horizontal clipping on compact devices; timer remains prominent.
+        LinearLayout featurePanel=Ui.vertical(this);
+        featurePanel.setPadding(Ui.dp(this,10),Ui.dp(this,10),
+            Ui.dp(this,10),Ui.dp(this,14));
+        featurePanel.setBackground(Ui.background(Ui.PANEL,14,this));
+        TextView featureHeading=Ui.text(this,
+            "FUNCIONES DE REPRODUCCIÓN",14,Ui.WHITE,true);
+        featureHeading.setPadding(Ui.dp(this,3),0,0,Ui.dp(this,9));
+        featurePanel.addView(featureHeading);
 
-        LinearLayout line2=Ui.horizontal(this);
-        line2.setPadding(0,Ui.dp(this,13),0,Ui.dp(this,12));
+        sleepButton=Ui.pill(this,"☾  Temporizador · pausar automáticamente",true);
+        sleepButton.setContentDescription("Abrir opciones del temporizador");
+        sleepButton.setOnClickListener(v->showSleepTimerDialog());
+        sleepButton.setMinHeight(Ui.dp(this,48));
+        featurePanel.addView(sleepButton,Ui.lp(this,-1,-2));
+
+        LinearLayout rowA=Ui.horizontal(this);
         qualityButton=Ui.pill(this,"⚙ Calidad",false);
         qualityButton.setOnClickListener(v->qualityPicker());
-        line2.addView(qualityButton);
-        speedButton=Ui.pill(this,"1×",false);
+        addFeatureCell(rowA,qualityButton);
+        speedButton=Ui.pill(this,"▶ 1× Velocidad",false);
         speedButton.setOnClickListener(v->speedPicker());
-        addWithMargin(line2,speedButton);
+        addFeatureCell(rowA,speedButton);
+        featurePanel.addView(rowA,spacedRow());
+
+        LinearLayout rowB=Ui.horizontal(this);
         TextView pip=Ui.pill(this,"▣ Flotante",false);
         pip.setOnClickListener(v->enterPip());
-        addWithMargin(line2,pip);
-        details.addView(line2);
+        addFeatureCell(rowB,pip);
+        TextView audio=Ui.pill(this,"♫ Solo audio",false);
+        audio.setOnClickListener(v->playAudioOnly());
+        addFeatureCell(rowB,audio);
+        featurePanel.addView(rowB,spacedRow());
 
-        LinearLayout line3=Ui.horizontal(this);
-        TextView download=Ui.pill(this,"↓  Descargar",false);
+        LinearLayout rowC=Ui.horizontal(this);
+        TextView download=Ui.pill(this,"↓ Descargar",false);
         download.setOnClickListener(v->saveOffline());
-        line3.addView(download);
-        TextView later=Ui.pill(this,"◷  Ver después",false);
+        addFeatureCell(rowC,download);
+        TextView later=Ui.pill(this,"◷ Ver después",false);
         later.setOnClickListener(v->{
             Store.toggleWatchLater(this,video);
-            later.setText(Store.inWatchLater(this,id)?"✓  En Ver después":"◷  Ver después");
-            toast(Store.inWatchLater(this,id)?"Agregado a Ver después":"Quitado de Ver después");
+            later.setText(Store.inWatchLater(this,id)?
+                "✓ En Ver después":"◷ Ver después");
+            toast(Store.inWatchLater(this,id)?
+                "Agregado a Ver después":"Quitado de Ver después");
         });
-        addWithMargin(line3,later);
-        details.addView(line3);
+        addFeatureCell(rowC,later);
+        featurePanel.addView(rowC,spacedRow());
 
-        LinearLayout sleepRow=Ui.horizontal(this);
-        sleepRow.setPadding(0,Ui.dp(this,12),0,0);
-        sleepButton=Ui.pill(this,"☾  Temporizador",false);
-        sleepButton.setContentDescription("Configurar pausa automática del video");
-        sleepButton.setOnClickListener(v->showSleepTimerDialog());
-        sleepRow.addView(sleepButton);
-        details.addView(sleepRow);
+        LinearLayout rowD=Ui.horizontal(this);
+        savedButton=Ui.pill(this,"☆ Guardar",false);
+        savedButton.setOnClickListener(v->{
+            Store.toggleFavorite(this,video);refreshSaved();
+        });
+        addFeatureCell(rowD,savedButton);
+        followButton=Ui.pill(this,"+ Suscribirme",false);
+        followButton.setOnClickListener(v->{
+            String channel=video.optString("authorId","");
+            if(channel.isEmpty()) {
+                toast("No encontramos un ID válido de canal");return;
+            }
+            Store.toggleSubscription(this,channel,
+                video.optString("author","Canal"));
+            refreshSaved();
+        });
+        addFeatureCell(rowD,followButton);
+        featurePanel.addView(rowD,spacedRow());
+
+        TextView share=Ui.pill(this,"↗ Compartir video",false);
+        share.setOnClickListener(v->share());
+        LinearLayout.LayoutParams shareParams=Ui.lp(this,-1,44);
+        shareParams.topMargin=Ui.dp(this,8);
+        featurePanel.addView(share,shareParams);
+        details.addView(featurePanel);
         refreshSleepTimer();
 
         TextView heading=Ui.text(this,"Sigue viendo",19,Ui.WHITE,true);
@@ -226,10 +256,78 @@ public final class PlayerActivity extends Activity {
         renderOrientation(getResources().getConfiguration().orientation);
     }
 
-    private void addWithMargin(LinearLayout row,TextView view) {
-        LinearLayout.LayoutParams p=Ui.lp(this,-2,-2);
-        p.leftMargin=Ui.dp(this,8);
+    private LinearLayout.LayoutParams spacedRow() {
+        LinearLayout.LayoutParams p=Ui.lp(this,-1,-2);
+        p.topMargin=Ui.dp(this,8);
+        return p;
+    }
+
+    private void addFeatureCell(LinearLayout row,TextView view) {
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(
+            0,Ui.dp(this,46),1);
+        p.leftMargin=Ui.dp(this,3);
+        p.rightMargin=Ui.dp(this,3);
+        view.setTextSize(12);
+        view.setMaxLines(1);
+        view.setGravity(Gravity.CENTER);
         row.addView(view,p);
+    }
+
+    private void playAudioOnly() {
+        if(offline) {
+            toast("La reproducción sin conexión usa el archivo descargado");
+            return;
+        }
+        for(int i=0;i<options.size();i++) {
+            if("Solo audio".equals(options.get(i).label)) {
+                position=i;
+                playOption(options.get(i),
+                    controller==null?0:controller.getCurrentPosition());
+                toast("Reproducción de solo audio activada");
+                return;
+            }
+        }
+        toast("Este video no ofrece un formato de solo audio compatible");
+    }
+
+    private void showToolsDialog() {
+        String[] choices={
+            "☾ Temporizador de descanso",
+            "⚙ Calidad",
+            "▶ Velocidad",
+            "▣ Ventana flotante",
+            "♫ Solo audio",
+            "↓ Descargar MP4",
+            "◷ Ver después",
+            "★ Favoritos",
+            "ℹ Reproducción en segundo plano"
+        };
+        new AlertDialog.Builder(this)
+            .setTitle("Funciones · YungaTube 0.3.4")
+            .setItems(choices,(dialog,choice)->{
+                switch(choice) {
+                    case 0: showSleepTimerDialog();break;
+                    case 1: qualityPicker();break;
+                    case 2: speedPicker();break;
+                    case 3: enterPip();break;
+                    case 4: playAudioOnly();break;
+                    case 5: saveOffline();break;
+                    case 6:
+                        Store.toggleWatchLater(this,video);
+                        toast("Lista Ver después actualizada");break;
+                    case 7:
+                        Store.toggleFavorite(this,video);
+                        refreshSaved();
+                        toast("Favoritos actualizados");break;
+                    default:
+                        new AlertDialog.Builder(this)
+                            .setTitle("Segundo plano")
+                            .setMessage("La reproducción continúa con la pantalla "+
+                                "apagada cuando el servicio multimedia está activo. "+
+                                "Android puede detenerla si restringe la batería.")
+                            .setPositiveButton("Entendido",null).show();
+                }
+            }).setNegativeButton("Cerrar",null).show();
     }
 
     private void refreshSaved(){

@@ -75,7 +75,7 @@ public final class MainActivity extends Activity {
         TextView play=Ui.pill(this,"▶",true);
         play.setTextSize(18);
         brand.addView(play,Ui.lp(this,46,40));
-        TextView word=Ui.text(this," YungaTube",23,Ui.WHITE,true);
+        TextView word=Ui.text(this," YungaTube 0.3.4",19,Ui.WHITE,true);
         brand.addView(word,new LinearLayout.LayoutParams(0,Ui.dp(this,44),1));
         TextView refresh=Ui.text(this,"⟳",27,Ui.WHITE,false);
         refresh.setGravity(Gravity.CENTER);
@@ -460,6 +460,7 @@ public final class MainActivity extends Activity {
             "Fuente de videos: "+(Api.useDirect(this)?"Directa (NewPipe)":"Invidious"),
             "Ventana flotante automática: "+(
                 getSharedPreferences(Api.PREFS,0).getBoolean("auto_pip",true)?"Activada":"Desactivada"),
+            "Información de versión y funciones",
             "Privacidad y limitaciones"
         };
         new AlertDialog.Builder(this).setTitle("Configuración")
@@ -469,8 +470,22 @@ public final class MainActivity extends Activity {
                     boolean prior=getSharedPreferences(Api.PREFS,0).getBoolean("auto_pip",true);
                     getSharedPreferences(Api.PREFS,0).edit().putBoolean("auto_pip",!prior).apply();
                     settings();
-                } else privacy();
+                } else if(which==2)showVersionInfo();
+                else privacy();
             }).setNegativeButton("Cerrar",null).show();
+    }
+
+    private void showVersionInfo() {
+        new AlertDialog.Builder(this)
+            .setTitle("YungaTube · versión 0.3.4")
+            .setMessage("Edición instalada: "+getPackageName()+
+                "\\n\\nPara encontrar los controles de reproducción, abre un video "+
+                "y toca «☾ Funciones» en la barra superior. Allí están "+
+                "Temporizador, calidad, velocidad, ventana flotante, solo "+
+                "audio, descargas, Ver después y favoritos.\\n\\n"+
+                "Si la app muestra otro número de versión, estás abriendo "+
+                "una instalación anterior.")
+            .setPositiveButton("Entendido",null).show();
     }
 
     private void serverPicker(){
