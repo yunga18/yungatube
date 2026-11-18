@@ -25,20 +25,29 @@ import android.widget.TextView;
 import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /** Mobile-first home with large thumbnails and a local library (no Google login). */
 public final class MainActivity extends Activity {
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
     private LinearLayout root, feed, bottom, filterRow, libraryTabs;
     private HorizontalScrollView libraryScroll;
+    private ScrollView scroll;
     private ProgressBar progress;
     private EditText search;
     private TextView heading;
     private String tab="Inicio", selectedTopic="Todo", librarySection="Continuar viendo";
     private String lastQuery="";
     private int token=0;
+    private boolean resumedOnce=false;
+    /** In-memory feed cache so returning from a video does not re-download the feed. */
+    private static final long FEED_TTL_MS=10*60_000L;
+    private static final HashMap<String,Object[]> FEED_CACHE=new HashMap<>();
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -80,12 +89,12 @@ public final class MainActivity extends Activity {
         play.setScaleType(ImageView.ScaleType.FIT_CENTER);
         play.setContentDescription("Logo YungaTube");
         brand.addView(play,Ui.lp(this,46,46));
-        TextView word=Ui.text(this," YungaTube 0.3.5",19,Ui.WHITE,true);
+        TextView word=Ui.text(this," YungaTube "+Ui.version(this),19,Ui.WHITE,true);
         brand.addView(word,new LinearLayout.LayoutParams(0,Ui.dp(this,44),1));
         TextView refresh=Ui.text(this,"⟳",27,Ui.WHITE,false);
         refresh.setGravity(Gravity.CENTER);
         refresh.setContentDescription("Actualizar videos");
-        refresh.setOnClickListener(v->refresh());
+        refresh.setOnClickListener(v->refresh(true));
         brand.addView(refresh,Ui.lp(this,45,42));
         TextView settings=Ui.text(this,"⚙",24,Ui.WHITE,false);
         settings.setGravity(Gravity.CENTER);
@@ -129,7 +138,7 @@ public final class MainActivity extends Activity {
         progress.setIndeterminateTintList(ColorStateList.valueOf(Ui.RED));
         root.addView(progress,Ui.lp(this,-1,2));
 
-        ScrollView scroll=new ScrollView(this);
+        scroll=new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setFillViewport(true);
         LinearLayout container=Ui.vertical(this);
@@ -184,7 +193,8 @@ public final class MainActivity extends Activity {
     private void changeTab(String next){
         tab=next;
         tabs();
-        refresh();
+        refresh(false);
+        scroll.scrollTo(0,0);
     }
 
     private void topics(){
@@ -203,13 +213,22 @@ public final class MainActivity extends Activity {
             p.leftMargin=Ui.dp(this,7);
             p.topMargin=Ui.dp(this,3);
             filterRow.addView(chip,p);
-            chip.setOnClickListener(v->{selectedTopic=name;refresh();});
+            chip.setOnClickListener(v->{selectedTopic=name;refresh(false);scroll.scrollTo(0,0);});
         }
     }
 
     private interface Loader{JSONArray run() throws Exception;}
-    private void load(Loader loader){
+    private void load(String key,boolean force,Loader loader){
         final int current=++token;
+        // Source can change in settings, so it is part of the cache key.
+        final String cacheKey=(Api.useDirect(this)?"direct|":Api.configured(this)+"|")+key;
+        Object[] hit;
+        synchronized(FEED_CACHE){hit=FEED_CACHE.get(cacheKey);}
+        if(!force && hit!=null && System.currentTimeMillis()-(Long)hit[0]<FEED_TTL_MS){
+            progress.setVisibility(View.GONE);
+            cards((JSONArray)hit[1]);
+            return;
+        }
         feed.removeAllViews();
         progress.setVisibility(View.VISIBLE);
         TextView loading=Ui.text(this,"Buscando videos...",14,Ui.MUTED,false);
@@ -218,6 +237,9 @@ public final class MainActivity extends Activity {
         executor.execute(()->{
             try{
                 JSONArray videos=loader.run();
+                if(videos!=null && videos.length()>0)synchronized(FEED_CACHE){
+                    FEED_CACHE.put(cacheKey,new Object[]{System.currentTimeMillis(),videos});
+                }
                 runOnUiThread(()->{
                     if(current!=token || isFinishing() || isDestroyed())return;
                     progress.setVisibility(View.GONE);
@@ -234,24 +256,25 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void refresh(){
+    private void refresh(boolean force){
         topics();
         libraryTabs.removeAllViews();
         libraryScroll.setVisibility("Biblioteca".equals(tab)?View.VISIBLE:View.GONE);
         switch(tab){
             case "Inicio":
                 heading.setText(selectedTopic.equals("Todo")?"Recomendados para descubrir":selectedTopic);
-                if("Todo".equals(selectedTopic)){
-                    load(()->Api.get(this,"/api/v1/trending?region=EC").array());
-                }else if("En vivo".equals(selectedTopic)){
-                    load(()->Api.get(this,"/api/v1/search?q="+Api.encode("en vivo Ecuador")+"&type=video").array());
+                String topic=selectedTopic;
+                if("Todo".equals(topic)){
+                    load("trending",force,()->Api.get(this,"/api/v1/trending?region=EC").array());
+                }else if("En vivo".equals(topic)){
+                    load("topic:"+topic,force,()->Api.get(this,"/api/v1/search?q="+Api.encode("en vivo Ecuador")+"&type=video").array());
                 }else{
-                    load(()->Api.get(this,"/api/v1/search?q="+Api.encode(selectedTopic)+"&type=video").array());
+                    load("topic:"+topic,force,()->Api.get(this,"/api/v1/search?q="+Api.encode(topic)+"&type=video").array());
                 }
                 break;
             case "Shorts":
                 heading.setText("Shorts");
-                load(()->Api.get(this,"/api/v1/search?q="+Api.encode("shorts español")+"&type=video").array());
+                load("shorts",force,()->Api.get(this,"/api/v1/search?q="+Api.encode("shorts español")+"&type=video").array());
                 break;
             case "Seguidos":
                 heading.setText("Tus suscripciones");
@@ -259,7 +282,7 @@ public final class MainActivity extends Activity {
                     ++token;
                     progress.setVisibility(View.GONE);
                     empty("Cuando sigas canales aparecerán sus videos aquí.\nNo necesitas iniciar sesión.");
-                } else load(this::followed);
+                } else load("followed:"+Store.subscriptions(this).toString(),force,this::followed);
                 break;
             case "Biblioteca":
                 heading.setText("Tu biblioteca");
@@ -272,7 +295,8 @@ public final class MainActivity extends Activity {
                 break;
             case "Buscar":
                 heading.setText("Resultados: "+lastQuery);
-                load(()->Api.get(this,"/api/v1/search?q="+Api.encode(lastQuery)+"&type=video").array());
+                String query=lastQuery;
+                load("search:"+query,force,()->Api.get(this,"/api/v1/search?q="+Api.encode(query)+"&type=video").array());
                 break;
         }
     }
@@ -286,22 +310,34 @@ public final class MainActivity extends Activity {
         changeTab("Buscar");
     }
 
+    /** Fetches up to 20 channels in parallel and interleaves their latest videos. */
     private JSONArray followed() throws Exception{
         JSONArray subs=Store.subscriptions(this),out=new JSONArray();
-        for(int i=0;i<subs.length() && i<20;i++){
-            JSONObject sub=subs.optJSONObject(i);
-            if(sub==null)continue;
-            String channel=sub.optString("id","");
-            if(!channel.matches("UC[A-Za-z0-9_-]{22}"))continue;
-            try{
-                JSONObject c=Api.get(this,"/api/v1/channels/"+channel).object();
-                JSONArray items=c.optJSONArray("latestVideos");
-                if(items!=null)for(int j=0;j<Math.min(10,items.length());j++){
-                    JSONObject v=items.optJSONObject(j);
-                    if(v!=null)out.put(v);
-                }
-            }catch(Exception ignored){/* one unavailable channel must not block all */}
-        }
+        ExecutorService pool=Executors.newFixedThreadPool(4);
+        List<Future<JSONArray>> jobs=new ArrayList<>();
+        try{
+            for(int i=0;i<subs.length() && jobs.size()<20;i++){
+                JSONObject sub=subs.optJSONObject(i);
+                if(sub==null)continue;
+                String channel=sub.optString("id","");
+                if(!channel.matches("UC[A-Za-z0-9_-]{22}"))continue;
+                jobs.add(pool.submit(()->{
+                    JSONArray items=Api.get(this,"/api/v1/channels/"+channel)
+                        .object().optJSONArray("latestVideos");
+                    return items==null?new JSONArray():items;
+                }));
+            }
+            List<JSONArray> lists=new ArrayList<>();
+            for(Future<JSONArray> job:jobs){
+                try{lists.add(job.get());}
+                catch(InterruptedException e){Thread.currentThread().interrupt();throw e;}
+                catch(Exception ignored){/* one unavailable channel must not block all */}
+            }
+            for(int j=0;j<10;j++)for(JSONArray items:lists){
+                JSONObject v=items.optJSONObject(j);
+                if(v!=null)out.put(v);
+            }
+        }finally{pool.shutdownNow();}
         return out;
     }
 
@@ -508,22 +544,57 @@ public final class MainActivity extends Activity {
         summary.addView(meta,new LinearLayout.LayoutParams(0,-2,1));
         TextView more=Ui.text(this,"⋮",22,Ui.MUTED,true);
         more.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL);
-        more.setOnClickListener(v->new AlertDialog.Builder(this)
-            .setItems(new String[]{"Abrir video","Guardar en Favoritos","Ver después"},
-                (d,choice)->{
-                    if(choice==0)action.run();
-                    else if(choice==1) {
-                        Store.toggleFavorite(this,video);
-                        Toast.makeText(this,"Favoritos actualizados",Toast.LENGTH_SHORT).show();
-                    } else {
-                        Store.toggleWatchLater(this,video);
-                        Toast.makeText(this,"Ver después actualizado",Toast.LENGTH_SHORT).show();
-                    }
-                }).show());
+        more.setContentDescription("Más opciones");
+        more.setOnClickListener(v->videoMenu(video,action));
         summary.addView(more,Ui.lp(this,28,45));
         card.addView(summary);
         card.setOnClickListener(v->action.run());
         if(longPress!=null)card.setOnLongClickListener(v->{longPress.run();return true;});
+    }
+
+    private void videoMenu(JSONObject video,Runnable open){
+        String vid=Ui.id(video);
+        boolean fav=Store.favorite(this,vid), later=Store.inWatchLater(this,vid);
+        boolean resumable=Store.progressMs(this,vid)>0;
+        List<String> labels=new ArrayList<>();
+        List<Runnable> actions=new ArrayList<>();
+        labels.add("▶ Abrir video");actions.add(open);
+        labels.add(fav?"★ Quitar de Favoritos":"☆ Guardar en Favoritos");
+        actions.add(()->{
+            boolean added=Store.toggleFavorite(this,video);
+            toast(added?"Agregado a Favoritos":"Quitado de Favoritos");
+            if("Biblioteca".equals(tab))library();
+        });
+        labels.add(later?"✓ Quitar de Ver después":"◷ Ver después");
+        actions.add(()->{
+            boolean added=Store.toggleWatchLater(this,video);
+            toast(added?"Agregado a Ver después":"Quitado de Ver después");
+            if("Biblioteca".equals(tab))library();
+        });
+        if(resumable){
+            labels.add("✕ Quitar de Continuar viendo");
+            actions.add(()->{
+                Store.clearProgress(this,vid);
+                toast("Quitado de Continuar viendo");
+                if("Biblioteca".equals(tab))library();
+                else if("Inicio".equals(tab))refresh(false);
+            });
+        }
+        labels.add("↗ Compartir");
+        actions.add(()->{
+            Intent send=new Intent(Intent.ACTION_SEND);
+            send.setType("text/plain");
+            send.putExtra(Intent.EXTRA_TEXT,"https://www.youtube.com/watch?v="+vid);
+            startActivity(Intent.createChooser(send,"Compartir video"));
+        });
+        new AlertDialog.Builder(this)
+            .setTitle(video.optString("title","Video"))
+            .setItems(labels.toArray(new String[0]),(d,choice)->actions.get(choice).run())
+            .show();
+    }
+
+    private void toast(String message){
+        Toast.makeText(this,message,Toast.LENGTH_SHORT).show();
     }
 
     private String firstLetter(String source){
@@ -570,12 +641,12 @@ public final class MainActivity extends Activity {
 
     private void showVersionInfo() {
         new AlertDialog.Builder(this)
-            .setTitle("YungaTube · versión 0.3.5")
+            .setTitle("YungaTube · versión "+Ui.version(this))
             .setMessage("Edición instalada: "+getPackageName()+
-                "\\n\\nPara encontrar los controles de reproducción, abre un video "+
+                "\n\nPara encontrar los controles de reproducción, abre un video "+
                 "y toca «☾ Funciones» en la barra superior. Allí están "+
                 "Temporizador, calidad, velocidad, ventana flotante, solo "+
-                "audio, descargas, Ver después y favoritos.\\n\\n"+
+                "audio, descargas, Ver después y favoritos.\n\n"+
                 "Si la app muestra otro número de versión, estás abriendo "+
                 "una instalación anterior.")
             .setPositiveButton("Entendido",null).show();
@@ -591,10 +662,10 @@ public final class MainActivity extends Activity {
             .setMessage("La fuente directa consulta YouTube sin iniciar sesión. "+
                 "Las instancias de Invidious son servicios de terceros y pueden fallar.")
             .setItems(options,(d,index)->{
-                if(index==0){Api.selectDirect(this);refresh();}
+                if(index==0){Api.selectDirect(this);refresh(true);}
                 else if(index<=Api.INSTANCES.length){
                     Api.setInstance(this,Api.INSTANCES[index-1]);
-                    refresh();
+                    refresh(true);
                 }else customServer();
             }).setNegativeButton("Cancelar",null).show();
     }
@@ -609,7 +680,7 @@ public final class MainActivity extends Activity {
                 String entered=Api.validate(input.getText().toString());
                 if(entered==null)
                     Toast.makeText(this,"Introduce un dominio HTTPS válido",Toast.LENGTH_LONG).show();
-                else{Api.setInstance(this,entered);refresh();}
+                else{Api.setInstance(this,entered);refresh(true);}
             }).setNegativeButton("Cancelar",null).show();
     }
 
@@ -628,9 +699,20 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume(){
         super.onResume();
-        if("Biblioteca".equals(tab)||"Descargas".equals(tab)||"Inicio".equals(tab)){
-            if(root!=null)refresh();
+        // Re-render with fresh local progress; the network feed comes from cache
+        // so the list (and scroll position) is kept after closing a video.
+        // The first resume follows onCreate, which already started loading.
+        if(!resumedOnce){resumedOnce=true;return;}
+        if(root!=null && ("Biblioteca".equals(tab)||"Descargas".equals(tab)||"Inicio".equals(tab))){
+            int y=scroll.getScrollY();
+            refresh(false);
+            scroll.post(()->scroll.scrollTo(0,y));
         }
+    }
+    @Override public void onBackPressed(){
+        // Back from search results or another tab returns home instead of closing.
+        if(!"Inicio".equals(tab)){changeTab("Inicio");return;}
+        super.onBackPressed();
     }
     @Override protected void onDestroy(){
         ++token;

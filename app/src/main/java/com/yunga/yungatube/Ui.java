@@ -83,6 +83,12 @@ final class Ui {
         root.requestApplyInsets();
     }
 
+    /** Installed versionName, so screens never show a stale hard-coded number. */
+    static String version(Context c) {
+        try { return c.getPackageManager().getPackageInfo(c.getPackageName(),0).versionName; }
+        catch (Exception e) { return ""; }
+    }
+
     static String id(JSONObject json) {
         String id = json.optString("videoId", "");
         return id.matches("[A-Za-z0-9_-]{11}") ? id : "";

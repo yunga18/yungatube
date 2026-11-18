@@ -14,7 +14,11 @@ import java.util.concurrent.Executors;
 final class Images {
     private static final ExecutorService POOL=Executors.newFixedThreadPool(3);
     private static final Handler MAIN=new Handler(Looper.getMainLooper());
-    private static final LruCache<String, Bitmap> CACHE=new LruCache<>(40);
+    // Sized in bytes (1/8 of the heap) instead of a fixed count of large bitmaps.
+    private static final LruCache<String, Bitmap> CACHE=new LruCache<String, Bitmap>(
+            (int)Math.min(Integer.MAX_VALUE,Runtime.getRuntime().maxMemory()/8)) {
+        @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount(); }
+    };
     private Images() {}
 
     static void load(ImageView image, String videoId) {
@@ -22,6 +26,7 @@ final class Images {
         image.setTag(videoId);
         Bitmap hit=CACHE.get(videoId);
         if(hit!=null) {image.setImageBitmap(hit);return;}
+        image.setImageDrawable(null);
         POOL.execute(()->{
             Bitmap bmp=null;
             HttpURLConnection c=null;
@@ -30,7 +35,9 @@ final class Images {
                 c.setConnectTimeout(8000);
                 c.setReadTimeout(8000);
                 if(c.getResponseCode()==200) {
-                    try(java.io.InputStream in=c.getInputStream()) {bmp=BitmapFactory.decodeStream(in);}
+                    BitmapFactory.Options opts=new BitmapFactory.Options();
+                    opts.inPreferredConfig=Bitmap.Config.RGB_565; // thumbnails need no alpha; half the memory
+                    try(java.io.InputStream in=c.getInputStream()) {bmp=BitmapFactory.decodeStream(in,null,opts);}
                 }
             } catch(Exception ignored) {} finally {if(c!=null)c.disconnect();}
             Bitmap ready=bmp;

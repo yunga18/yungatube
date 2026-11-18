@@ -82,18 +82,23 @@ public final class PlayerActivity extends Activity {
     private final Player.Listener listener=new Player.Listener(){
         @Override public void onPlayerError(PlaybackException error) {
             runOnUiThread(()->{
-                if(isFinishing() || isDestroyed() || offline) {
+                if(isFinishing() || isDestroyed()) return;
+                if(offline) {
                     status.setText("No se pudo abrir el archivo descargado");
                     status.setVisibility(View.VISIBLE);
                     return;
                 }
-                // Try another progressive source; never loop forever.
-                if(position+1<options.size()) {
-                    position++;
-                    playOption(options.get(position),0);
+                // Try the next video source (audio-only is never an automatic
+                // fallback) and keep the current position; never loop forever.
+                long seek=controller==null?0:Math.max(0,controller.getCurrentPosition());
+                int next=position+1;
+                while(next<options.size() && "Solo audio".equals(options.get(next).label)) next++;
+                if(next<options.size()) {
+                    position=next;
+                    playOption(options.get(position),seek);
                 } else {
                     status.setText("La reproducción falló: "+error.getErrorCodeName()+
-                        "\nPrueba otra calidad o vuelve a buscar el video.");
+                        "\nPrueba otra calidad, «Solo audio» o vuelve a buscar el video.");
                     status.setVisibility(View.VISIBLE);
                 }
             });
@@ -141,7 +146,7 @@ public final class PlayerActivity extends Activity {
         avatar.setImageResource(R.drawable.logo_yungatube);
         avatar.setScaleType(ImageView.ScaleType.FIT_CENTER);
         header.addView(avatar,Ui.lp(this,36,40));
-        TextView logo=Ui.text(this," YungaTube · v0.3.5",14,Ui.WHITE,true);
+        TextView logo=Ui.text(this," YungaTube · v"+Ui.version(this),14,Ui.WHITE,true);
         header.addView(logo,new LinearLayout.LayoutParams(0,Ui.dp(this,42),1));
         TextView toolsTop=Ui.pill(this,"☾ Funciones",true);
         toolsTop.setContentDescription("Abrir todas las funciones y temporizador");
@@ -198,7 +203,7 @@ public final class PlayerActivity extends Activity {
         qualityButton=Ui.pill(this,"⚙ Calidad",false);
         qualityButton.setOnClickListener(v->qualityPicker());
         addFeatureCell(rowA,qualityButton);
-        speedButton=Ui.pill(this,"▶ 1× Velocidad",false);
+        speedButton=Ui.pill(this,speedLabel(savedSpeed()),false);
         speedButton.setOnClickListener(v->speedPicker());
         addFeatureCell(rowA,speedButton);
         featurePanel.addView(rowA,spacedRow());
@@ -310,7 +315,7 @@ public final class PlayerActivity extends Activity {
             "ℹ Reproducción en segundo plano"
         };
         new AlertDialog.Builder(this)
-            .setTitle("Funciones · YungaTube 0.3.5")
+            .setTitle("Funciones · YungaTube "+Ui.version(this))
             .setItems(choices,(dialog,choice)->{
                 switch(choice) {
                     case 0: showSleepTimerDialog();break;
@@ -453,10 +458,16 @@ public final class PlayerActivity extends Activity {
                         return;
                     }
                     ready=true;
-                    int preferred=0;
-                    for(int i=0;i<options.size();i++)
-                        if("360p".equals(options.get(i).label)){preferred=i;break;}
-                    position=preferred;
+                    // Use the quality the user picked last time, else 360p.
+                    String wanted=getSharedPreferences(Api.PREFS,0)
+                        .getString("preferred_quality","360p");
+                    int preferred=-1, fallback=0;
+                    for(int i=0;i<options.size();i++) {
+                        String label=options.get(i).label;
+                        if(label.equals(wanted)){preferred=i;break;}
+                        if("360p".equals(label))fallback=i;
+                    }
+                    position=preferred>=0?preferred:fallback;
                     showRelated(info.optJSONArray("recommendedVideos"));
                     startSourceWhenReady();
                 });
@@ -484,6 +495,7 @@ public final class PlayerActivity extends Activity {
         if(offline) {
             qualityButton.setText("Sin conexión");
             playUri(offlineUri,"video/mp4",pendingResumeMs);
+            applySavedSpeed();
             return;
         }
         if(!options.isEmpty())playOption(options.get(position),pendingResumeMs);
@@ -500,6 +512,20 @@ public final class PlayerActivity extends Activity {
                     video.optString("author",""),seek))
                 playUri(Uri.parse(stream.url),stream.type,seek);
         }else playUri(Uri.parse(stream.url),stream.type,seek);
+        applySavedSpeed();
+    }
+
+    private float savedSpeed() {
+        return getSharedPreferences(Api.PREFS,0).getFloat("playback_speed",1f);
+    }
+
+    private void applySavedSpeed() {
+        if(controller!=null) controller.setPlaybackSpeed(savedSpeed());
+    }
+
+    private static String speedLabel(float rate) {
+        String n=rate==(int)rate ? Integer.toString((int)rate) : Float.toString(rate);
+        return "▶ "+n+"× Velocidad";
     }
 
     private void playUri(Uri uri,String mime,long seek){
@@ -526,6 +552,11 @@ public final class PlayerActivity extends Activity {
             .setSingleChoiceItems(labels,position,(dialog,selected)->{
                 long seek=controller==null?0:controller.getCurrentPosition();
                 position=selected;
+                String label=options.get(selected).label;
+                if(!"Solo audio".equals(label) && !"Directo".equals(label)
+                        && !"Servidor alternativo".equals(label))
+                    getSharedPreferences(Api.PREFS,0).edit()
+                        .putString("preferred_quality",label).apply();
                 playOption(options.get(selected),seek);
                 dialog.dismiss();
             }).setNegativeButton("Cancelar",null).show();
@@ -627,8 +658,10 @@ public final class PlayerActivity extends Activity {
         float[] rates={0.5f,0.75f,1f,1.25f,1.5f,1.75f,2f};
         new AlertDialog.Builder(this).setTitle("Velocidad de reproducción")
             .setItems(labels,(dialog,index)->{
-                controller.setPlaybackSpeed(rates[index]);
-                speedButton.setText(labels[index].replace("Normal ",""));
+                getSharedPreferences(Api.PREFS,0).edit()
+                    .putFloat("playback_speed",rates[index]).apply();
+                if(controller!=null) controller.setPlaybackSpeed(rates[index]);
+                speedButton.setText(speedLabel(rates[index]));
             }).show();
     }
 
