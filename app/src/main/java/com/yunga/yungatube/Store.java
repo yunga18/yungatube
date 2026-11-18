@@ -25,7 +25,8 @@ final class Store {
         JSONObject o = new JSONObject();
         try {
             for (String key : new String[]{"videoId","title","author","authorId",
-                "lengthSeconds","published","publishedText"}) {
+                "lengthSeconds","published","publishedText","viewCount",
+                "authorThumbnail","liveNow"}) {
                 if (raw.has(key)) o.put(key,raw.get(key));
             }
         } catch (Exception ignored) {}
