@@ -2,6 +2,27 @@
 
 Aplicación Android independiente, gratuita y sin cuenta de Google. El código está publicado bajo GPL-3.0-or-later.
 
+## Novedades v0.4.0: nueva interfaz y reproducción más fiable
+
+- **Interfaz renovada** al estilo de las apps de video habituales: fondo blanco, miniaturas a todo el ancho con duración, avatar del canal, vistas y fecha; chips de temas; búsqueda desde la lupa de la barra superior; barra inferior limpia.
+- **Shorts** en cuadrícula vertical de dos columnas.
+- **Pantalla de video** con título, «…más» para la descripción, fila del canal con «Suscribirse», fila deslizable de acciones (Guardar, Ver después, Compartir, Descargar, Temporizador, Calidad, Velocidad, Solo audio, Flotante, Funciones), botón de pantalla completa y lista «A continuación».
+- **Corregido «solo se escucha el audio»**: ya no se eligen pistas AV1/VP9 que muchos teléfonos no pueden decodificar (solo H.264), y «Solo audio» nunca se elige por defecto.
+- **Carga más rápida**: el video HD y el audio se reproducen mediante DASH con peticiones por rangos al estilo de NewPipe, que YouTube no ralentiza; el reproductor empieza con 1 s de búfer; la información de un video se reutiliza 40 min al volver a abrirlo. Calidad por defecto: 720p.
+- **Directos corregidos**: se reproducen por HLS desde el punto en vivo, con insignia «EN VIVO»; no guardan progreso ni permiten cambiar velocidad o descargar.
+
+## Novedades v0.3.6: más rápida y cómoda
+
+- **Inicio no se recarga al volver de un video**: los resultados se guardan en memoria 10 minutos y se conserva la posición de desplazamiento. El botón ⟳ fuerza una recarga.
+- **Recuerda tu calidad y velocidad preferidas** entre videos.
+- **Botón Atrás** en búsquedas u otras pestañas vuelve a Inicio en lugar de cerrar la app.
+- **Menú ⋮ mejorado**: muestra si el video ya está en Favoritos o Ver después (permite quitarlo), y añade «Quitar de Continuar viendo» y «Compartir».
+- **Suscripciones más rápidas**: los canales se consultan en paralelo y sus videos se intercalan.
+- **Menos memoria** en miniaturas (caché por tamaño y formato RGB_565).
+- Si una fuente falla, el reproductor prueba la siguiente **sin volver al inicio del video** y sin saltar a «Solo audio».
+- La versión mostrada se lee de la app instalada; se corrigió el texto «\n» visible en «Información de versión».
+- La APK de prueba mantiene el mismo identificador (`com.yunga.yungatube.revision35`), así que se actualiza encima de la 0.3.5 conservando tus datos si la firma coincide.
+
 ## Novedades v0.3.5: logo, verde claro y Continuar viendo
 
 - Logo proporcionado por el usuario en cabeceras y como icono de la APK.

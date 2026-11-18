@@ -25,27 +25,34 @@ import android.widget.TextView;
 import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /** Mobile-first home with large thumbnails and a local library (no Google login). */
 public final class MainActivity extends Activity {
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
     private LinearLayout root, feed, bottom, filterRow, libraryTabs;
     private HorizontalScrollView libraryScroll;
+    private ScrollView scroll;
     private ProgressBar progress;
     private EditText search;
+    private LinearLayout searchBox;
     private TextView heading;
     private String tab="Inicio", selectedTopic="Todo", librarySection="Continuar viendo";
     private String lastQuery="";
     private int token=0;
+    private boolean resumedOnce=false;
+    /** In-memory feed cache so returning from a video does not re-download the feed. */
+    private static final long FEED_TTL_MS=10*60_000L;
+    private static final HashMap<String,Object[]> FEED_CACHE=new HashMap<>();
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        getWindow().setStatusBarColor(Ui.BG);
-        getWindow().setNavigationBarColor(Ui.BG);
-        getWindow().getDecorView().setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        Ui.lightBars(this);
         drawLayout();
         changeTab("Inicio");
         openIncoming(getIntent());
@@ -73,68 +80,78 @@ public final class MainActivity extends Activity {
         setContentView(root);
         Ui.insets(this,root);
 
+        // App bar: logo + name, then search / refresh / settings icons.
         LinearLayout brand=Ui.horizontal(this);
-        brand.setPadding(Ui.dp(this,14),Ui.dp(this,10),Ui.dp(this,12),Ui.dp(this,8));
-        ImageView play=new ImageView(this);
-        play.setImageResource(R.drawable.logo_yungatube);
-        play.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        play.setContentDescription("Logo YungaTube");
-        brand.addView(play,Ui.lp(this,46,46));
-        TextView word=Ui.text(this," YungaTube 0.3.5",19,Ui.WHITE,true);
+        brand.setPadding(Ui.dp(this,12),Ui.dp(this,6),Ui.dp(this,4),Ui.dp(this,6));
+        ImageView logo=new ImageView(this);
+        logo.setImageResource(R.drawable.logo_yungatube);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setContentDescription("Logo YungaTube");
+        Cards.round(logo,8,this);
+        brand.addView(logo,Ui.lp(this,32,32));
+        TextView word=Ui.text(this,"YungaTube",20,Ui.WHITE,true);
+        word.setTypeface(android.graphics.Typeface.create("sans-serif-condensed",
+            android.graphics.Typeface.BOLD));
+        word.setPadding(Ui.dp(this,6),0,0,0);
         brand.addView(word,new LinearLayout.LayoutParams(0,Ui.dp(this,44),1));
-        TextView refresh=Ui.text(this,"⟳",27,Ui.WHITE,false);
-        refresh.setGravity(Gravity.CENTER);
-        refresh.setContentDescription("Actualizar videos");
-        refresh.setOnClickListener(v->refresh());
-        brand.addView(refresh,Ui.lp(this,45,42));
-        TextView settings=Ui.text(this,"⚙",24,Ui.WHITE,false);
-        settings.setGravity(Gravity.CENTER);
-        settings.setContentDescription("Ajustes de YungaTube");
+        TextView searchIcon=Ui.icon(this,"⌕","Buscar");
+        searchIcon.setTextSize(26);
+        searchIcon.setOnClickListener(v->toggleSearch(searchBox.getVisibility()!=View.VISIBLE));
+        brand.addView(searchIcon,Ui.lp(this,44,44));
+        TextView refresh=Ui.icon(this,"⟳","Actualizar videos");
+        refresh.setOnClickListener(v->refresh(true));
+        brand.addView(refresh,Ui.lp(this,44,44));
+        TextView settings=Ui.icon(this,"⚙","Ajustes de YungaTube");
         settings.setOnClickListener(v->settings());
-        brand.addView(settings,Ui.lp(this,45,42));
+        brand.addView(settings,Ui.lp(this,44,44));
         root.addView(brand);
 
-        LinearLayout searchBox=Ui.horizontal(this);
-        searchBox.setPadding(Ui.dp(this,14),Ui.dp(this,0),Ui.dp(this,14),Ui.dp(this,9));
-        search= new EditText(this);
+        // Search field, revealed from the app bar like a typical video app.
+        searchBox=Ui.horizontal(this);
+        searchBox.setPadding(Ui.dp(this,12),0,Ui.dp(this,12),Ui.dp(this,8));
+        search=new EditText(this);
         search.setSingleLine(true);
         search.setTextColor(Ui.WHITE);
         search.setHintTextColor(Ui.MUTED);
         search.setTextSize(15);
-        search.setHint("⌕  Buscar en YouTube");
-        search.setPadding(Ui.dp(this,13),0,Ui.dp(this,12),0);
-        search.setBackground(Ui.background(Ui.PANEL,25,this));
+        search.setHint("Buscar en YouTube");
+        search.setPadding(Ui.dp(this,16),0,Ui.dp(this,12),0);
+        search.setBackground(Ui.background(Ui.PANEL,22,this));
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         search.setOnEditorActionListener((v,action,event)->{
             if(action==EditorInfo.IME_ACTION_SEARCH){searchNow();return true;}
             return false;
         });
-        searchBox.addView(search,new LinearLayout.LayoutParams(0,Ui.dp(this,46),1));
-        TextView go=Ui.pill(this,"Buscar",true);
-        LinearLayout.LayoutParams goLp=Ui.lp(this,-2,45);
+        searchBox.addView(search,new LinearLayout.LayoutParams(0,Ui.dp(this,42),1));
+        TextView go=Ui.icon(this,"⌕","Buscar ahora");
+        go.setTextColor(android.graphics.Color.WHITE);
+        go.setBackground(Ui.oval(Ui.WHITE));
+        LinearLayout.LayoutParams goLp=Ui.lp(this,42,42);
         goLp.leftMargin=Ui.dp(this,8);
         searchBox.addView(go,goLp);
         go.setOnClickListener(v->searchNow());
+        searchBox.setVisibility(View.GONE);
         root.addView(searchBox);
 
         filterRow=Ui.horizontal(this);
+        filterRow.setPadding(Ui.dp(this,8),0,Ui.dp(this,12),0);
         HorizontalScrollView filters=new HorizontalScrollView(this);
         filters.setHorizontalScrollBarEnabled(false);
         filters.setFillViewport(false);
         filters.addView(filterRow);
-        root.addView(filters,Ui.lp(this,-1,49));
+        root.addView(filters,Ui.lp(this,-1,48));
 
         progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
-        progress.setIndeterminateTintList(ColorStateList.valueOf(Ui.RED));
+        progress.setIndeterminateTintList(ColorStateList.valueOf(Ui.LIVE));
         root.addView(progress,Ui.lp(this,-1,2));
 
-        ScrollView scroll=new ScrollView(this);
+        scroll=new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setFillViewport(true);
         LinearLayout container=Ui.vertical(this);
-        heading=Ui.text(this,"",22,Ui.WHITE,true);
-        heading.setPadding(Ui.dp(this,15),Ui.dp(this,13),Ui.dp(this,15),Ui.dp(this,8));
+        heading=Ui.text(this,"",20,Ui.WHITE,true);
+        heading.setPadding(Ui.dp(this,14),Ui.dp(this,10),Ui.dp(this,14),Ui.dp(this,10));
         container.addView(heading);
         libraryTabs=Ui.horizontal(this);
         libraryTabs.setPadding(Ui.dp(this,12),0,Ui.dp(this,12),Ui.dp(this,12));
@@ -149,67 +166,83 @@ public final class MainActivity extends Activity {
         scroll.addView(container);
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
 
+        root.addView(Ui.divider(this),Ui.lp(this,-1,1));
         bottom=Ui.horizontal(this);
-        bottom.setBackgroundColor(Ui.PANEL);
-        bottom.setPadding(Ui.dp(this,4),Ui.dp(this,6),Ui.dp(this,4),Ui.dp(this,6));
+        bottom.setBackgroundColor(Ui.BG);
+        bottom.setPadding(0,Ui.dp(this,4),0,Ui.dp(this,4));
         root.addView(bottom);
         tabs();
+    }
+
+    private void toggleSearch(boolean show){
+        searchBox.setVisibility(show?View.VISIBLE:View.GONE);
+        InputMethodManager ime=(InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+        if(show){
+            search.requestFocus();
+            ime.showSoftInput(search,InputMethodManager.SHOW_IMPLICIT);
+        }else ime.hideSoftInputFromWindow(search.getWindowToken(),0);
     }
 
     private void tabs(){
         bottom.removeAllViews();
         String[][] tabs={
-            {"Inicio","⌂"},{"Shorts","▣"},{"Seguidos","♡"},
-            {"Biblioteca","▤"},{"Descargas","↓"}
+            {"Inicio","⌂"},{"Shorts","▶"},{"Seguidos","▤"},
+            {"Biblioteca","☰"},{"Descargas","⤓"}
         };
         for(String[] pair:tabs){
             boolean active=pair[0].equals(tab);
             LinearLayout item=Ui.vertical(this);
             item.setGravity(Gravity.CENTER);
-            TextView icon=Ui.text(this,pair[1],23,active?Ui.WHITE:Ui.MUTED,true);
+            TextView icon=Ui.text(this,pair[1],21,active?Ui.WHITE:Ui.MUTED,active);
             icon.setGravity(Gravity.CENTER);
             item.addView(icon);
             TextView label=Ui.text(this,pair[0],10,active?Ui.WHITE:Ui.MUTED,active);
             label.setGravity(Gravity.CENTER);
+            label.setPadding(0,Ui.dp(this,3),0,0);
             item.addView(label);
-            if(active)item.setBackground(Ui.background(Ui.SOFT,16,this));
+            item.setContentDescription(pair[0]);
             item.setOnClickListener(v->changeTab(pair[0]));
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,Ui.dp(this,56),1);
-            p.leftMargin=Ui.dp(this,2);
-            p.rightMargin=Ui.dp(this,2);
-            bottom.addView(item,p);
+            bottom.addView(item,new LinearLayout.LayoutParams(0,Ui.dp(this,50),1));
         }
     }
 
     private void changeTab(String next){
         tab=next;
         tabs();
-        refresh();
+        refresh(false);
+        scroll.scrollTo(0,0);
     }
 
     private void topics(){
         filterRow.removeAllViews();
         if(!"Inicio".equals(tab)){
-            filterRow.setVisibility(View.GONE);
+            ((View)filterRow.getParent()).setVisibility(View.GONE);
             return;
         }
-        filterRow.setVisibility(View.VISIBLE);
-        String[] names={"Todo","Música","Videojuegos","Tecnología","Ciencia",
-            "Matemáticas","Noticias","En vivo"};
+        ((View)filterRow.getParent()).setVisibility(View.VISIBLE);
+        String[] names={"Todo","Música","Videojuegos","En vivo","Noticias","Tecnología",
+            "Ciencia","Matemáticas","Deportes","Comedia"};
         for(String name:names){
             TextView chip=Ui.pill(this,name,name.equals(selectedTopic));
-            if(!name.equals(selectedTopic))chip.setTextColor(Ui.WHITE);
-            LinearLayout.LayoutParams p=Ui.lp(this,-2,37);
-            p.leftMargin=Ui.dp(this,7);
-            p.topMargin=Ui.dp(this,3);
+            LinearLayout.LayoutParams p=Ui.lp(this,-2,34);
+            p.leftMargin=Ui.dp(this,6);
             filterRow.addView(chip,p);
-            chip.setOnClickListener(v->{selectedTopic=name;refresh();});
+            chip.setOnClickListener(v->{selectedTopic=name;refresh(false);scroll.scrollTo(0,0);});
         }
     }
 
     private interface Loader{JSONArray run() throws Exception;}
-    private void load(Loader loader){
+    private void load(String key,boolean force,Loader loader){
         final int current=++token;
+        // Source can change in settings, so it is part of the cache key.
+        final String cacheKey=(Api.useDirect(this)?"direct|":Api.configured(this)+"|")+key;
+        Object[] hit;
+        synchronized(FEED_CACHE){hit=FEED_CACHE.get(cacheKey);}
+        if(!force && hit!=null && System.currentTimeMillis()-(Long)hit[0]<FEED_TTL_MS){
+            progress.setVisibility(View.GONE);
+            cards((JSONArray)hit[1]);
+            return;
+        }
         feed.removeAllViews();
         progress.setVisibility(View.VISIBLE);
         TextView loading=Ui.text(this,"Buscando videos...",14,Ui.MUTED,false);
@@ -218,6 +251,9 @@ public final class MainActivity extends Activity {
         executor.execute(()->{
             try{
                 JSONArray videos=loader.run();
+                if(videos!=null && videos.length()>0)synchronized(FEED_CACHE){
+                    FEED_CACHE.put(cacheKey,new Object[]{System.currentTimeMillis(),videos});
+                }
                 runOnUiThread(()->{
                     if(current!=token || isFinishing() || isDestroyed())return;
                     progress.setVisibility(View.GONE);
@@ -234,24 +270,26 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void refresh(){
+    private void refresh(boolean force){
         topics();
+        heading.setVisibility(View.VISIBLE);
         libraryTabs.removeAllViews();
         libraryScroll.setVisibility("Biblioteca".equals(tab)?View.VISIBLE:View.GONE);
         switch(tab){
             case "Inicio":
-                heading.setText(selectedTopic.equals("Todo")?"Recomendados para descubrir":selectedTopic);
-                if("Todo".equals(selectedTopic)){
-                    load(()->Api.get(this,"/api/v1/trending?region=EC").array());
-                }else if("En vivo".equals(selectedTopic)){
-                    load(()->Api.get(this,"/api/v1/search?q="+Api.encode("en vivo Ecuador")+"&type=video").array());
+                heading.setVisibility(View.GONE);
+                String topic=selectedTopic;
+                if("Todo".equals(topic)){
+                    load("trending",force,()->Api.get(this,"/api/v1/trending?region=EC").array());
+                }else if("En vivo".equals(topic)){
+                    load("topic:"+topic,force,()->Api.get(this,"/api/v1/search?q="+Api.encode("en vivo ahora")+"&type=video").array());
                 }else{
-                    load(()->Api.get(this,"/api/v1/search?q="+Api.encode(selectedTopic)+"&type=video").array());
+                    load("topic:"+topic,force,()->Api.get(this,"/api/v1/search?q="+Api.encode(topic)+"&type=video").array());
                 }
                 break;
             case "Shorts":
                 heading.setText("Shorts");
-                load(()->Api.get(this,"/api/v1/search?q="+Api.encode("shorts español")+"&type=video").array());
+                load("shorts",force,()->Api.get(this,"/api/v1/search?q="+Api.encode("shorts español")+"&type=video").array());
                 break;
             case "Seguidos":
                 heading.setText("Tus suscripciones");
@@ -259,7 +297,7 @@ public final class MainActivity extends Activity {
                     ++token;
                     progress.setVisibility(View.GONE);
                     empty("Cuando sigas canales aparecerán sus videos aquí.\nNo necesitas iniciar sesión.");
-                } else load(this::followed);
+                } else load("followed:"+Store.subscriptions(this).toString(),force,this::followed);
                 break;
             case "Biblioteca":
                 heading.setText("Tu biblioteca");
@@ -272,7 +310,8 @@ public final class MainActivity extends Activity {
                 break;
             case "Buscar":
                 heading.setText("Resultados: "+lastQuery);
-                load(()->Api.get(this,"/api/v1/search?q="+Api.encode(lastQuery)+"&type=video").array());
+                String query=lastQuery;
+                load("search:"+query,force,()->Api.get(this,"/api/v1/search?q="+Api.encode(query)+"&type=video").array());
                 break;
         }
     }
@@ -281,27 +320,38 @@ public final class MainActivity extends Activity {
         String query=search.getText().toString().trim();
         if(query.isEmpty()){search.setError("Escribe qué deseas buscar");return;}
         lastQuery=query;
-        ((InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE))
-            .hideSoftInputFromWindow(search.getWindowToken(),0);
+        toggleSearch(false);
         changeTab("Buscar");
     }
 
+    /** Fetches up to 20 channels in parallel and interleaves their latest videos. */
     private JSONArray followed() throws Exception{
         JSONArray subs=Store.subscriptions(this),out=new JSONArray();
-        for(int i=0;i<subs.length() && i<20;i++){
-            JSONObject sub=subs.optJSONObject(i);
-            if(sub==null)continue;
-            String channel=sub.optString("id","");
-            if(!channel.matches("UC[A-Za-z0-9_-]{22}"))continue;
-            try{
-                JSONObject c=Api.get(this,"/api/v1/channels/"+channel).object();
-                JSONArray items=c.optJSONArray("latestVideos");
-                if(items!=null)for(int j=0;j<Math.min(10,items.length());j++){
-                    JSONObject v=items.optJSONObject(j);
-                    if(v!=null)out.put(v);
-                }
-            }catch(Exception ignored){/* one unavailable channel must not block all */}
-        }
+        ExecutorService pool=Executors.newFixedThreadPool(4);
+        List<Future<JSONArray>> jobs=new ArrayList<>();
+        try{
+            for(int i=0;i<subs.length() && jobs.size()<20;i++){
+                JSONObject sub=subs.optJSONObject(i);
+                if(sub==null)continue;
+                String channel=sub.optString("id","");
+                if(!channel.matches("UC[A-Za-z0-9_-]{22}"))continue;
+                jobs.add(pool.submit(()->{
+                    JSONArray items=Api.get(this,"/api/v1/channels/"+channel)
+                        .object().optJSONArray("latestVideos");
+                    return items==null?new JSONArray():items;
+                }));
+            }
+            List<JSONArray> lists=new ArrayList<>();
+            for(Future<JSONArray> job:jobs){
+                try{lists.add(job.get());}
+                catch(InterruptedException e){Thread.currentThread().interrupt();throw e;}
+                catch(Exception ignored){/* one unavailable channel must not block all */}
+            }
+            for(int j=0;j<10;j++)for(JSONArray items:lists){
+                JSONObject v=items.optJSONObject(j);
+                if(v!=null)out.put(v);
+            }
+        }finally{pool.shutdownNow();}
         return out;
     }
 
@@ -355,7 +405,7 @@ public final class MainActivity extends Activity {
             long downloadId=item.optLong("downloadId",-1);
             int state=Downloads.status(this,downloadId);
             String label=Downloads.description(state);
-            addCard(item,label,()->{
+            addCard(item,0,label,()->{
                 if(state==DownloadManager.STATUS_SUCCESSFUL){
                     Uri uri=Downloads.uri(this,downloadId);
                     if(uri!=null)play(item,uri.toString());
@@ -377,24 +427,66 @@ public final class MainActivity extends Activity {
                 empty("No hay videos aquí por ahora.\nPrueba otra búsqueda.");
             return;
         }
+        if("Shorts".equals(tab)){shortsGrid(items);return;}
+        HashMap<String,Long> resume=resumeMap();
         for(int i=0;i<Math.min(90,items.length());i++){
             JSONObject item=items.optJSONObject(i);
             if(item==null || Ui.id(item).isEmpty())continue;
-            addCard(item,"",()->play(item,null),null);
+            long at=item.optLong("resumeMs",0);
+            if(at<=0 && resume.containsKey(Ui.id(item)))at=resume.get(Ui.id(item));
+            addCard(item,at,"",()->play(item,null),null);
         }
         if(feed.getChildCount()==0)empty("No encontramos videos para mostrar.");
     }
 
+    private HashMap<String,Long> resumeMap(){
+        HashMap<String,Long> map=new HashMap<>();
+        JSONArray saved=Store.continueWatching(this);
+        for(int i=0;i<saved.length();i++){
+            JSONObject o=saved.optJSONObject(i);
+            if(o!=null)map.put(o.optString("videoId",""),o.optLong("resumeMs",0));
+        }
+        return map;
+    }
+
+    /** Two-column grid of vertical tiles. Prefers real Shorts (≤ 3 min) when there are enough. */
+    private void shortsGrid(JSONArray items){
+        List<JSONObject> picked=new ArrayList<>(), all=new ArrayList<>();
+        for(int i=0;i<items.length();i++){
+            JSONObject o=items.optJSONObject(i);
+            if(o==null || Ui.id(o).isEmpty() || Ui.live(o))continue;
+            all.add(o);
+            int len=o.optInt("lengthSeconds",0);
+            if(o.optBoolean("isShort",false) || (len>0 && len<=180))picked.add(o);
+        }
+        if(picked.size()<4)picked=all;
+        int width=getResources().getDisplayMetrics().widthPixels;
+        int gap=Ui.dp(this,4);
+        int tileW=(width-gap*3)/2;
+        LinearLayout row=null;
+        for(int i=0;i<picked.size();i++){
+            if(i%2==0){
+                row=Ui.horizontal(this);
+                row.setPadding(gap,0,gap,gap);
+                feed.addView(row);
+            }
+            JSONObject item=picked.get(i);
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(tileW,tileW*16/9);
+            if(i%2==1)p.leftMargin=gap;
+            row.addView(Cards.shortTile(this,item,()->play(item,null)),p);
+        }
+        if(feed.getChildCount()==0)empty("No encontramos Shorts para mostrar.");
+    }
 
     private void addContinueSection() {
         JSONArray items=Store.continueWatching(this);
         if(items.length()==0) return;
         LinearLayout headingRow=Ui.horizontal(this);
-        headingRow.setPadding(Ui.dp(this,15),Ui.dp(this,12),
-            Ui.dp(this,15),Ui.dp(this,10));
-        TextView heading=Ui.text(this,"▶ Continuar viendo",19,Ui.WHITE,true);
-        headingRow.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
-        TextView all=Ui.text(this,"Ver todos ›",13,Ui.RED,true);
+        headingRow.setPadding(Ui.dp(this,14),Ui.dp(this,10),Ui.dp(this,14),Ui.dp(this,10));
+        TextView title=Ui.text(this,"Continuar viendo",18,Ui.WHITE,true);
+        headingRow.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        TextView all=Ui.pill(this,"Ver todos",false);
+        all.setTextSize(13);
         all.setOnClickListener(v->{
             librarySection="Continuar viendo";
             changeTab("Biblioteca");
@@ -402,133 +494,91 @@ public final class MainActivity extends Activity {
         headingRow.addView(all);
         feed.addView(headingRow);
 
-        HorizontalScrollView scroll=new HorizontalScrollView(this);
-        scroll.setHorizontalScrollBarEnabled(false);
+        HorizontalScrollView strip=new HorizontalScrollView(this);
+        strip.setHorizontalScrollBarEnabled(false);
         LinearLayout list=Ui.horizontal(this);
-        list.setPadding(Ui.dp(this,12),0,Ui.dp(this,12),0);
-        scroll.addView(list);
+        list.setGravity(Gravity.TOP);
+        list.setPadding(Ui.dp(this,10),0,Ui.dp(this,10),0);
+        strip.addView(list);
         for(int i=0;i<Math.min(items.length(),12);i++) {
             JSONObject item=items.optJSONObject(i);
             if(item==null || Ui.id(item).isEmpty())continue;
             LinearLayout card=Ui.vertical(this);
-            card.setBackground(Ui.background(Ui.PANEL,14,this));
-            LinearLayout.LayoutParams cardParams=Ui.lp(this,182,-2);
+            LinearLayout.LayoutParams cardParams=Ui.lp(this,176,-2);
             cardParams.leftMargin=Ui.dp(this,4);
-            cardParams.rightMargin=Ui.dp(this,5);
+            cardParams.rightMargin=Ui.dp(this,4);
             list.addView(card,cardParams);
-
-            FrameLayout thumbnail=new FrameLayout(this);
-            ImageView picture=new ImageView(this);
-            picture.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            thumbnail.addView(picture,new FrameLayout.LayoutParams(-1,-1));
-            Images.load(picture,Ui.id(item));
-            int pct=0;
-            long dur=item.optLong("durationMs",0);
-            if(dur>0)pct=(int)Math.min(100,Math.max(0,100*item.optLong("resumeMs",0)/dur));
-            View track=new View(this);
-            track.setBackgroundColor(0x99000000);
-            FrameLayout.LayoutParams trackLp=new FrameLayout.LayoutParams(-1,Ui.dp(this,4),Gravity.BOTTOM);
-            thumbnail.addView(track,trackLp);
-            if(pct>0){
-                View meter=new View(this);
-                meter.setBackgroundColor(Ui.RED);
-                FrameLayout.LayoutParams meterLp=new FrameLayout.LayoutParams(
-                    Ui.dp(this,182)*pct/100,Ui.dp(this,4),Gravity.BOTTOM|Gravity.LEFT);
-                thumbnail.addView(meter,meterLp);
-            }
-            card.addView(thumbnail,Ui.lp(this,-1,102));
+            card.addView(Cards.thumbnail(this,item,item.optLong("resumeMs",0),8),Ui.lp(this,-1,99));
             TextView name=Ui.text(this,item.optString("title","Video"),13,Ui.WHITE,true);
             name.setMaxLines(2);
-            name.setPadding(Ui.dp(this,9),Ui.dp(this,8),
-                Ui.dp(this,9),Ui.dp(this,3));
+            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            name.setPadding(0,Ui.dp(this,7),0,Ui.dp(this,3));
             card.addView(name);
             String time=Ui.duration((int)(item.optLong("resumeMs",0)/1000));
-            TextView resume=Ui.text(this,"Desde "+time,12,Ui.MUTED,false);
-            resume.setPadding(Ui.dp(this,9),0,Ui.dp(this,9),Ui.dp(this,10));
+            TextView resume=Ui.text(this,item.optString("author","")+" · desde "+time,11,Ui.MUTED,false);
+            resume.setSingleLine(true);
+            resume.setEllipsize(android.text.TextUtils.TruncateAt.END);
             card.addView(resume);
             card.setOnClickListener(v->play(item,null));
+            card.setOnLongClickListener(v->{videoMenu(item,()->play(item,null));return true;});
         }
-        feed.addView(scroll);
-        View spacing=new View(this);
-        feed.addView(spacing,Ui.lp(this,-1,10));
-        TextView forYou=Ui.text(this,"Descubre más videos",18,Ui.WHITE,true);
-        forYou.setPadding(Ui.dp(this,15),Ui.dp(this,12),
-            Ui.dp(this,15),Ui.dp(this,12));
-        feed.addView(forYou);
+        feed.addView(strip);
+        View spacing=Ui.divider(this);
+        LinearLayout.LayoutParams sp=Ui.lp(this,-1,4);
+        sp.topMargin=Ui.dp(this,16);
+        sp.bottomMargin=Ui.dp(this,4);
+        feed.addView(spacing,sp);
     }
 
-    private void addCard(JSONObject video,String suffix,Runnable action,Runnable longPress){
-        LinearLayout card=Ui.vertical(this);
-        LinearLayout.LayoutParams cardLp=Ui.lp(this,-1,-2);
-        cardLp.bottomMargin=Ui.dp(this,12);
-        feed.addView(card,cardLp);
-        FrameLayout thumb=new FrameLayout(this);
-        int widthPx=getResources().getDisplayMetrics().widthPixels;
-        int height=Math.max(150,(int)((widthPx/getResources().getDisplayMetrics().density)*9.0/16.0));
-        ImageView image=new ImageView(this);
-        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        image.setBackgroundColor(Ui.SOFT);
-        thumb.addView(image,new FrameLayout.LayoutParams(-1,-1));
-        Images.load(image,Ui.id(video));
-        int length=video.optInt("lengthSeconds",0);
-        if(length>0){
-            TextView duration=Ui.text(this,Ui.duration(length),12,Color.WHITE,true);
-            duration.setPadding(Ui.dp(this,5),0,Ui.dp(this,5),0);
-            duration.setBackground(Ui.background(0xE0000000,4,this));
-            FrameLayout.LayoutParams d=new FrameLayout.LayoutParams(-2,Ui.dp(this,22),
-                Gravity.RIGHT|Gravity.BOTTOM);
-            d.setMargins(0,0,Ui.dp(this,9),Ui.dp(this,8));
-            thumb.addView(duration,d);
-        }
-        card.addView(thumb,Ui.lp(this,-1,height));
-        LinearLayout summary=Ui.horizontal(this);
-        summary.setPadding(Ui.dp(this,15),Ui.dp(this,11),Ui.dp(this,15),Ui.dp(this,12));
-        TextView avatar=Ui.text(this,firstLetter(video.optString("author","Y")),19,Ui.WHITE,true);
-        avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(Ui.background(Ui.RED,40,this));
-        summary.addView(avatar,Ui.lp(this,40,40));
-        LinearLayout meta=Ui.vertical(this);
-        meta.setPadding(Ui.dp(this,11),0,0,0);
-        TextView name=Ui.text(this,video.optString("title","Video"),16,Ui.WHITE,true);
-        name.setMaxLines(2);
-        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        meta.addView(name);
-        String sub=video.optString("author","Canal");
-        if(video.optLong("resumeMs",0)>0) {
-            sub=sub+"  ·  Continuar desde "+
-                Ui.duration((int)(video.optLong("resumeMs",0)/1000));
-        } else if(suffix!=null && !suffix.isEmpty())sub=sub+"  ·  "+suffix;
-        else if(!video.optString("publishedText","").isEmpty())
-            sub=sub+"  ·  "+video.optString("publishedText");
-        TextView channel=Ui.text(this,sub,12,Ui.MUTED,false);
-        channel.setMaxLines(1);
-        channel.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        channel.setPadding(0,Ui.dp(this,5),0,0);
-        meta.addView(channel);
-        summary.addView(meta,new LinearLayout.LayoutParams(0,-2,1));
-        TextView more=Ui.text(this,"⋮",22,Ui.MUTED,true);
-        more.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL);
-        more.setOnClickListener(v->new AlertDialog.Builder(this)
-            .setItems(new String[]{"Abrir video","Guardar en Favoritos","Ver después"},
-                (d,choice)->{
-                    if(choice==0)action.run();
-                    else if(choice==1) {
-                        Store.toggleFavorite(this,video);
-                        Toast.makeText(this,"Favoritos actualizados",Toast.LENGTH_SHORT).show();
-                    } else {
-                        Store.toggleWatchLater(this,video);
-                        Toast.makeText(this,"Ver después actualizado",Toast.LENGTH_SHORT).show();
-                    }
-                }).show());
-        summary.addView(more,Ui.lp(this,28,45));
-        card.addView(summary);
-        card.setOnClickListener(v->action.run());
-        if(longPress!=null)card.setOnLongClickListener(v->{longPress.run();return true;});
+    private void addCard(JSONObject video,long resumeMs,String suffix,Runnable action,Runnable longPress){
+        View card=Cards.video(this,video,resumeMs,suffix,action,
+            ()->videoMenu(video,action),longPress);
+        feed.addView(card,Ui.lp(this,-1,-2));
     }
 
-    private String firstLetter(String source){
-        if(source==null || source.isEmpty())return "Y";
-        return source.substring(0,1).toUpperCase(java.util.Locale.ROOT);
+    private void videoMenu(JSONObject video,Runnable open){
+        String vid=Ui.id(video);
+        boolean fav=Store.favorite(this,vid), later=Store.inWatchLater(this,vid);
+        boolean resumable=Store.progressMs(this,vid)>0;
+        List<String> labels=new ArrayList<>();
+        List<Runnable> actions=new ArrayList<>();
+        labels.add("▶ Abrir video");actions.add(open);
+        labels.add(fav?"★ Quitar de Favoritos":"☆ Guardar en Favoritos");
+        actions.add(()->{
+            boolean added=Store.toggleFavorite(this,video);
+            toast(added?"Agregado a Favoritos":"Quitado de Favoritos");
+            if("Biblioteca".equals(tab))library();
+        });
+        labels.add(later?"✓ Quitar de Ver después":"◷ Ver después");
+        actions.add(()->{
+            boolean added=Store.toggleWatchLater(this,video);
+            toast(added?"Agregado a Ver después":"Quitado de Ver después");
+            if("Biblioteca".equals(tab))library();
+        });
+        if(resumable){
+            labels.add("✕ Quitar de Continuar viendo");
+            actions.add(()->{
+                Store.clearProgress(this,vid);
+                toast("Quitado de Continuar viendo");
+                if("Biblioteca".equals(tab))library();
+                else if("Inicio".equals(tab))refresh(false);
+            });
+        }
+        labels.add("↗ Compartir");
+        actions.add(()->{
+            Intent send=new Intent(Intent.ACTION_SEND);
+            send.setType("text/plain");
+            send.putExtra(Intent.EXTRA_TEXT,"https://www.youtube.com/watch?v="+vid);
+            startActivity(Intent.createChooser(send,"Compartir video"));
+        });
+        new AlertDialog.Builder(this)
+            .setTitle(video.optString("title","Video"))
+            .setItems(labels.toArray(new String[0]),(d,choice)->actions.get(choice).run())
+            .show();
+    }
+
+    private void toast(String message){
+        Toast.makeText(this,message,Toast.LENGTH_SHORT).show();
     }
 
     private void play(JSONObject video,String offline){
@@ -544,6 +594,7 @@ public final class MainActivity extends Activity {
         if("Inicio".equals(tab))addContinueSection();
         TextView view=Ui.text(this,message,15,Ui.MUTED,false);
         view.setGravity(Gravity.CENTER);
+        view.setLineSpacing(Ui.dp(this,3),1f);
         view.setPadding(Ui.dp(this,22),Ui.dp(this,60),Ui.dp(this,22),Ui.dp(this,18));
         feed.addView(view,Ui.lp(this,-1,-2));
     }
@@ -570,12 +621,12 @@ public final class MainActivity extends Activity {
 
     private void showVersionInfo() {
         new AlertDialog.Builder(this)
-            .setTitle("YungaTube · versión 0.3.5")
+            .setTitle("YungaTube · versión "+Ui.version(this))
             .setMessage("Edición instalada: "+getPackageName()+
-                "\\n\\nPara encontrar los controles de reproducción, abre un video "+
+                "\n\nPara encontrar los controles de reproducción, abre un video "+
                 "y toca «☾ Funciones» en la barra superior. Allí están "+
                 "Temporizador, calidad, velocidad, ventana flotante, solo "+
-                "audio, descargas, Ver después y favoritos.\\n\\n"+
+                "audio, descargas, Ver después y favoritos.\n\n"+
                 "Si la app muestra otro número de versión, estás abriendo "+
                 "una instalación anterior.")
             .setPositiveButton("Entendido",null).show();
@@ -591,10 +642,10 @@ public final class MainActivity extends Activity {
             .setMessage("La fuente directa consulta YouTube sin iniciar sesión. "+
                 "Las instancias de Invidious son servicios de terceros y pueden fallar.")
             .setItems(options,(d,index)->{
-                if(index==0){Api.selectDirect(this);refresh();}
+                if(index==0){Api.selectDirect(this);refresh(true);}
                 else if(index<=Api.INSTANCES.length){
                     Api.setInstance(this,Api.INSTANCES[index-1]);
-                    refresh();
+                    refresh(true);
                 }else customServer();
             }).setNegativeButton("Cancelar",null).show();
     }
@@ -609,7 +660,7 @@ public final class MainActivity extends Activity {
                 String entered=Api.validate(input.getText().toString());
                 if(entered==null)
                     Toast.makeText(this,"Introduce un dominio HTTPS válido",Toast.LENGTH_LONG).show();
-                else{Api.setInstance(this,entered);refresh();}
+                else{Api.setInstance(this,entered);refresh(true);}
             }).setNegativeButton("Cancelar",null).show();
     }
 
@@ -628,9 +679,21 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume(){
         super.onResume();
-        if("Biblioteca".equals(tab)||"Descargas".equals(tab)||"Inicio".equals(tab)){
-            if(root!=null)refresh();
+        // Re-render with fresh local progress; the network feed comes from cache
+        // so the list (and scroll position) is kept after closing a video.
+        // The first resume follows onCreate, which already started loading.
+        if(!resumedOnce){resumedOnce=true;return;}
+        if(root!=null && ("Biblioteca".equals(tab)||"Descargas".equals(tab)||"Inicio".equals(tab))){
+            int y=scroll.getScrollY();
+            refresh(false);
+            scroll.post(()->scroll.scrollTo(0,y));
         }
+    }
+    @Override public void onBackPressed(){
+        if(searchBox.getVisibility()==View.VISIBLE){toggleSearch(false);return;}
+        // Back from search results or another tab returns home instead of closing.
+        if(!"Inicio".equals(tab)){changeTab("Inicio");return;}
+        super.onBackPressed();
     }
     @Override protected void onDestroy(){
         ++token;

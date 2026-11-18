@@ -7,18 +7,24 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
-import android.view.WindowInsets;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import java.util.Locale;
 import org.json.JSONObject;
 
 final class Ui {
-    static final int BG = Color.rgb(241,255,245);
-    static final int PANEL = Color.rgb(222,248,231);
-    static final int SOFT = Color.rgb(201,239,213);
-    static final int WHITE = Color.rgb(23,52,34);
-    static final int MUTED = Color.rgb(92,124,102);
-    static final int RED = Color.rgb(62,197,109);
+    /** Page background. */
+    static final int BG = Color.WHITE;
+    /** Light surfaces: chips, search box, description. */
+    static final int PANEL = Color.rgb(242,242,242);
+    static final int SOFT = Color.rgb(229,229,229);
+    /** Primary text (historical name). */
+    static final int WHITE = Color.rgb(15,15,15);
+    static final int MUTED = Color.rgb(96,96,96);
+    /** YungaTube green accent (historical name). */
+    static final int RED = Color.rgb(22,163,74);
+    static final int LIVE = Color.rgb(204,0,0);
+    static final int DIVIDER = Color.rgb(230,230,230);
 
     private Ui() {}
 
@@ -46,6 +52,13 @@ final class Ui {
         return bg;
     }
 
+    static GradientDrawable oval(int color) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.OVAL);
+        bg.setColor(color);
+        return bg;
+    }
+
     static TextView text(Context c, String message, int size, int color, boolean bold) {
         TextView t = new TextView(c);
         t.setText(message);
@@ -53,16 +66,42 @@ final class Ui {
         t.setTextColor(color);
         t.setGravity(Gravity.CENTER_VERTICAL);
         t.setFontFeatureSettings("kern");
-        if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        t.setIncludeFontPadding(false);
+        if (bold) t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         return t;
     }
 
+    /** Rounded chip: dark when selected, light grey otherwise. */
     static TextView pill(Context c, String message, boolean active) {
-        TextView t = text(c, message, 13, active ? WHITE : MUTED, true);
+        TextView t = text(c, message, 14, active ? Color.WHITE : WHITE, true);
         t.setGravity(Gravity.CENTER);
-        t.setPadding(dp(c,16), dp(c,10), dp(c,16), dp(c,10));
-        t.setBackground(background(active ? RED : SOFT, 50, c));
+        t.setPadding(dp(c,14), dp(c,8), dp(c,14), dp(c,8));
+        t.setBackground(background(active ? WHITE : PANEL, 8, c));
         return t;
+    }
+
+    /** Round action button used under the player. */
+    static TextView action(Context c, String message) {
+        TextView t = text(c, message, 13, WHITE, true);
+        t.setGravity(Gravity.CENTER);
+        t.setSingleLine(true);
+        t.setPadding(dp(c,14), 0, dp(c,14), 0);
+        t.setBackground(background(PANEL, 18, c));
+        return t;
+    }
+
+    /** Flat text icon for app bars. */
+    static TextView icon(Context c, String glyph, String description) {
+        TextView t = text(c, glyph, 22, WHITE, false);
+        t.setGravity(Gravity.CENTER);
+        t.setContentDescription(description);
+        return t;
+    }
+
+    static View divider(Context c) {
+        View v = new View(c);
+        v.setBackgroundColor(DIVIDER);
+        return v;
     }
 
     static LinearLayout.LayoutParams lp(Context c, int w, int h) {
@@ -83,6 +122,19 @@ final class Ui {
         root.requestApplyInsets();
     }
 
+    static void lightBars(Activity a) {
+        a.getWindow().setStatusBarColor(BG);
+        a.getWindow().setNavigationBarColor(BG);
+        a.getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+    }
+
+    /** Installed versionName, so screens never show a stale hard-coded number. */
+    static String version(Context c) {
+        try { return c.getPackageManager().getPackageInfo(c.getPackageName(),0).versionName; }
+        catch (Exception e) { return ""; }
+    }
+
     static String id(JSONObject json) {
         String id = json.optString("videoId", "");
         return id.matches("[A-Za-z0-9_-]{11}") ? id : "";
@@ -90,14 +142,58 @@ final class Ui {
 
     static String duration(int seconds) {
         int h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60;
-        return h > 0 ? String.format(java.util.Locale.US, "%d:%02d:%02d",h,m,s)
-            : String.format(java.util.Locale.US, "%d:%02d",m,s);
+        return h > 0 ? String.format(Locale.US, "%d:%02d:%02d",h,m,s)
+            : String.format(Locale.US, "%d:%02d",m,s);
+    }
+
+    /** Spanish compact number: 950, 1,2 mil, 35 mil, 1,2 M, 3 mil M. */
+    static String count(long n) {
+        if (n < 1000) return Long.toString(Math.max(0,n));
+        if (n < 1_000_000) return decimal(n / 1000.0) + " mil";
+        if (n < 1_000_000_000) return decimal(n / 1_000_000.0) + " M";
+        return decimal(n / 1_000_000_000.0) + " mil M";
+    }
+
+    private static String decimal(double value) {
+        if (value >= 10) return Long.toString((long) value);
+        long tenths = (long) (value * 10);
+        return tenths % 10 == 0 ? Long.toString(tenths / 10)
+            : (tenths / 10) + "," + (tenths % 10);
+    }
+
+    static String views(long n) {
+        if (n < 0) return "";
+        if (n == 1) return "1 vista";
+        return count(n) + (n >= 1_000_000 ? " de vistas" : " vistas");
+    }
+
+    static boolean live(JSONObject video) {
+        return video.optBoolean("liveNow", false);
+    }
+
+    /** "Canal · 1,2 M de vistas · hace 2 días" */
+    static String meta(JSONObject video, boolean withChannel) {
+        StringBuilder sb = new StringBuilder();
+        if (withChannel) sb.append(video.optString("author", "Canal"));
+        String v = video.has("viewCount") ? views(video.optLong("viewCount", -1)) : "";
+        if (!v.isEmpty()) {
+            if (sb.length() > 0) sb.append(" · ");
+            sb.append(live(video) ? count(video.optLong("viewCount")) + " espectadores" : v);
+        }
+        String when = video.optString("publishedText", "");
+        if (!when.isEmpty() && !live(video)) {
+            if (sb.length() > 0) sb.append(" · ");
+            sb.append(when);
+        }
+        return sb.toString();
     }
 
     static String compact(JSONObject video) {
-        String channel = video.optString("author", "Canal desconocido");
-        int seconds = video.optInt("lengthSeconds",0);
-        String time = seconds > 0 ? "  ·  " + duration(seconds) : "";
-        return channel + time;
+        return meta(video, true);
+    }
+
+    static String initial(String source) {
+        if (source == null || source.isEmpty()) return "Y";
+        return source.substring(0,1).toUpperCase(Locale.ROOT);
     }
 }
